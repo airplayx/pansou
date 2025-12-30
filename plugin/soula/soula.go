@@ -62,14 +62,15 @@ func (sa *SoulaPlugin) RegisterWebRoutes(router *gin.RouterGroup) {
 	soula.GET("/categories", sa.handleCategories)
 	soula.GET("/collected-resources/random", sa.handleResourcesRandom)
 	soula.GET("/collected-resources", sa.handleResources)
+	soula.GET("/resource/:param", sa.handleResource)
 
 	fmt.Printf("[SOULA] Web路由已注册: /api/:param\n")
 }
 
 func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 	c.JSON(200, gin.H{
-		"success": true,
-		"message": "ok",
+		"code":    0,
+		"message": "success",
 		"data": gin.H{
 			"categories": []gin.H{
 				{
@@ -99,8 +100,8 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 
 func (sa *SoulaPlugin) handleResourcesRandom(c *gin.Context) {
 	c.JSON(200, gin.H{
-		"success": true,
-		"message": "ok",
+		"code":    0,
+		"message": "success",
 		"data": gin.H{
 			"items": []gin.H{
 				{
@@ -136,18 +137,40 @@ func (sa *SoulaPlugin) handleResourcesRandom(c *gin.Context) {
 	})
 }
 
+func (sa *SoulaPlugin) handleResource(c *gin.Context) {
+	c.JSON(200, gin.H{
+		"code":    0,
+		"message": "success",
+		"data": gin.H{
+			"total": 1,
+			"merged_by_type": gin.H{
+				"aliyun": []gin.H{
+					{
+						"url":      "https://www.alipan.com/s/B6t4whnnVQz",
+						"password": "",
+						"note":     "【学堂在线】算法设计与分析 - 清华大学",
+						"datetime": "2025-12-30T14:00:59Z",
+						"source":   "tg:shareAliyun",
+						"images": []string{
+							"https://cdn5.telesco.pe/file/lgM3olc5_0X9492Fk-dvoWRiEsiikO4KbEtPl4Wiu8BEArHckdUUBW2wDrqiQ4KBhqWOsX2r_3ar3fNkvShZAVDBZayPM1CYw62zVZjkvbKQcf3_qt9eSpOMtJwMdMclnrrdfXX5VgAgnE0kP_wNtIVM5szVhIhUMbsnShjh613cwTakHtNvQi9TnIC9Dd731voaBRI5F4RMxCuMwirKMEWMTzKKDmixVlEIYW_Wr3kp070SIzwvPyEcCNkdTRG5A77wRJyaiG7OxRGiTmUZMzz9W_S4RJt1IsCfwT4kmPxBfu8X9mouRlt9KXT6-WjH0yIWzchNBwFEfiKz3ZpNuQ.jpg",
+						},
+					},
+				},
+			},
+		},
+	})
+}
+
 func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	c.JSON(200, gin.H{
-		"success": true,
-		"message": "ok",
+		"code":    0,
+		"message": "success",
 		"data": gin.H{
-			"items": []gin.H{},
-			"pagination": gin.H{
-				"total":        0,
-				"current_page": 1,
-				"last_page":    1,
-				"per_page":     10,
-			},
+			"items":        []gin.H{},
+			"total":        0,
+			"current_page": 1,
+			"last_page":    1,
+			"per_page":     10,
 		},
 	})
 }

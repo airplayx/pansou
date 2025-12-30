@@ -1,11 +1,13 @@
 package api
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"pansou/config"
 	"pansou/plugin"
 	"pansou/service"
 	"pansou/util"
+	"pansou/util/warp"
 )
 
 // SetupRouter 设置路由
@@ -17,16 +19,24 @@ func SetupRouter(searchService *service.SearchService) *gin.Engine {
 	gin.SetMode(config.AppConfig.RunMode)
 
 	// 创建默认路由
-	r := gin.Default()
+	engine := gin.New()
+	if config.AppConfig.RunMode != gin.ReleaseMode {
+		engine.Use(gin.Logger())
+	}
+	engine.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
+		gin.DefaultWriter.Write(
+			[]byte(fmt.Sprintf("\n", c.Request.Method, " ", c.Request.URL.String(), "\n--------------------\n",
+				//c.Request.Header, "\n--------------------\n",
+				warp.NewStackError(err, 3).Error(), "\n")))
+	}))
 
 	// 添加中间件
-	r.Use(CORSMiddleware())
-	r.Use(LoggerMiddleware())
-	r.Use(util.GzipMiddleware()) // 添加压缩中间件
-	r.Use(AuthMiddleware())      // 添加认证中间件
+	engine.Use(CORSMiddleware())
+	engine.Use(util.GzipMiddleware()) // 添加压缩中间件
+	engine.Use(AuthMiddleware())      // 添加认证中间件
 
 	// 定义API路由组
-	api := r.Group("/api")
+	api := engine.Group("/api")
 	{
 		// 认证接口（不需要认证，由中间件公开路径处理）
 		auth := api.Group("/auth")
@@ -83,10 +93,10 @@ func SetupRouter(searchService *service.SearchService) *gin.Engine {
 		enabledPlugins := searchService.GetPluginManager().GetPlugins()
 		for _, p := range enabledPlugins {
 			if webPlugin, ok := p.(plugin.PluginWithWebHandler); ok {
-				webPlugin.RegisterWebRoutes(r.Group(""))
+				webPlugin.RegisterWebRoutes(engine.Group(""))
 			}
 		}
 	}
 
-	return r
+	return engine
 }
