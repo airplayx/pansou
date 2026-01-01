@@ -1,12 +1,16 @@
 package soula
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 	"os"
 	"pansou/model"
 	"pansou/plugin"
 	"path/filepath"
+	"strconv"
 	"sync"
 )
 
@@ -14,7 +18,8 @@ type SoulaPlugin struct {
 	*plugin.BaseAsyncPlugin
 
 	mu          sync.RWMutex
-	initialized bool // 初始化状态标记
+	initialized bool     // 初始化状态标记
+	DB          *gorm.DB // 数据库连接
 }
 
 func (sa *SoulaPlugin) Search(keyword string, ext map[string]interface{}) ([]model.SearchResult, error) {
@@ -52,6 +57,19 @@ func (sa *SoulaPlugin) Initialize() error {
 		return fmt.Errorf("创建存储目录失败: %v", err)
 	}
 
+	// 初始化数据库
+	dbPath := filepath.Join(StorageDir, "soula.db")
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("连接数据库失败: %v", err)
+	}
+
+	// 自动迁移
+	if err := db.AutoMigrate(&Category{}, &HotSearchItem{}, &CollectedResource{}, &ResourceLink{}); err != nil {
+		return fmt.Errorf("数据库迁移失败: %v", err)
+	}
+
+	sa.DB = db
 	sa.initialized = true
 	return nil
 }
@@ -63,114 +81,298 @@ func (sa *SoulaPlugin) RegisterWebRoutes(router *gin.RouterGroup) {
 	soula.GET("/collected-resources/random", sa.handleResourcesRandom)
 	soula.GET("/collected-resources", sa.handleResources)
 	soula.GET("/resource/:param", sa.handleResource)
+	soula.GET("/collected-resources/hot", sa.handleDailyHotResources)
 
 	fmt.Printf("[SOULA] Web路由已注册: /api/:param\n")
 }
 
-func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
+func (sa *SoulaPlugin) handleDailyHotResources(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if limit < 1 {
+		limit = 10
+	}
+
+	// Logic: Get top viewed resources created in the last 7 days (to ensure data availability)
+	// If you strictly want TODAY, use time.Now().Truncate(24 * time.Hour)
+	// But 7 days is a safer "Trending" window for typical sites
+	// daysAgo := time.Now().AddDate(0, 0, -7)
+
+	var resources []CollectedResource
+	// For "Today's Hot", we can just order by Views descending.
+	// Optionally add a where clause like: .Where("created_at > ?", daysAgo)
+	// For now, let's just show the global most popular to ensure we have data on the UI
+	if err := sa.DB.Order("views desc").Limit(limit).Find(&resources).Error; err != nil {
+		c.JSON(200, gin.H{
+			"code":    0,
+			"message": "success",
+			"data": gin.H{
+				"items": []gin.H{},
+			},
+		})
+		return
+	}
+
+	var items []gin.H
+	for _, res := range resources {
+		items = append(items, gin.H{
+			"id":        res.ID,
+			"unique_id": res.UniqueID,
+			"title":     res.AiTitle,
+			"views":     res.Views,
+			"category":  res.Category,
+		})
+	}
+
 	c.JSON(200, gin.H{
 		"code":    0,
 		"message": "success",
 		"data": gin.H{
-			"categories": []gin.H{
-				{
-					"name": "\u70ed\u641c",
-					"items": []gin.H{
-						{
-							"term":  "\u5510\u671d\u8be1\u4e8b\u5f55",
-							"score": 2497,
-						},
-						{
-							"term":  "\u6ce2\u591a\u91ce\u7ed3\u8863",
-							"score": 1473,
-						},
-						{
-							"term":  "\u73b0\u5728\u5c31\u51fa\u53d1",
-							"score": 1393,
-						},
-						{
-							"term":  "\u51e1\u4eba\u4fee\u4ed9",
-							"score": 1391,
-						},
-					},
-				},
-			}},
+			"items": items,
+		},
+	})
+}
+
+func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
+	// 1. Parse pagination parameters
+	pageStr := c.DefaultQuery("page", "1")
+	page, _ := strconv.Atoi(pageStr)
+	if page < 1 {
+		page = 1
+	}
+
+	pageSizeStr := c.DefaultQuery("pageSize", "5")
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	if pageSize < 1 {
+		pageSize = 5
+	}
+
+	// 2. Parse limits for items per category
+	limitStr := c.DefaultQuery("limit", "24")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		limit = 24
+	}
+
+	// 3. Count total categories
+	var total int64
+	sa.DB.Model(&Category{}).Count(&total)
+
+	// 4. Calculate pagination
+	offset := (page - 1) * pageSize
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize != 0 {
+		totalPages++
+	}
+
+	// 5. Fetch categories for current page
+	var categories []Category
+	if err := sa.DB.Limit(pageSize).Offset(offset).Find(&categories).Error; err != nil {
+		c.JSON(500, gin.H{"code": 500, "message": "Failed to fetch categories"})
+		return
+	}
+
+	var catList []gin.H
+	for _, cat := range categories {
+		var items []HotSearchItem
+		// Fetch limited items for each category
+		sa.DB.Where("category_id = ?", cat.ID).Order("score desc").Limit(limit).Find(&items)
+
+		itemsJson := make([]gin.H, 0)
+		for _, item := range items {
+			itemsJson = append(itemsJson, gin.H{
+				"term":  item.Term,
+				"score": item.Score,
+			})
+		}
+		catList = append(catList, gin.H{
+			"name":  cat.Name,
+			"icon":  cat.Icon,
+			"items": itemsJson,
+		})
+	}
+
+	c.JSON(200, gin.H{
+		"code":    0,
+		"message": "success",
+		"data": gin.H{
+			"categories":  catList,
+			"total":       total,
+			"page":        page,
+			"page_size":   pageSize,
+			"total_pages": totalPages,
+		},
 	})
 }
 
 func (sa *SoulaPlugin) handleResourcesRandom(c *gin.Context) {
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "6"))
+	if pageSize < 1 {
+		pageSize = 6
+	}
+
+	var resources []CollectedResource
+	// SQLite specific random order
+	if err := sa.DB.Order("RANDOM()").Limit(pageSize).Find(&resources).Error; err != nil {
+		c.JSON(200, gin.H{
+			"code":    0,
+			"message": "success",
+			"data": gin.H{
+				"items": []gin.H{},
+			},
+		})
+		return
+	}
+
+	var items []gin.H
+	for _, resource := range resources {
+		var tags []string
+		json.Unmarshal([]byte(resource.AiTags), &tags)
+
+		item := gin.H{
+			"id":               resource.ID,
+			"unique_id":        resource.UniqueID,
+			"channel":          resource.Channel,
+			"ai_title":         resource.AiTitle,
+			"ai_description":   resource.AiDescription,
+			"ai_tags":          tags,
+			"image_urls":       resource.ImageUrl,
+			"original_title":   resource.OriginalTitle,
+			"original_content": resource.OriginalContent,
+			"my_pan_url":       resource.MyPanURL,
+			"my_pan_password":  resource.MyPanPassword,
+			"views":            resource.Views,
+			"status":           resource.Status,
+			"status_text":      resource.StatusText,
+			"category":         resource.Category,
+			"created_at":       resource.CreatedAt.Format("2006-01-02 15:04:05"),
+		}
+		items = append(items, item)
+	}
+
 	c.JSON(200, gin.H{
 		"code":    0,
 		"message": "success",
 		"data": gin.H{
-			"items": []gin.H{
-				{
-					"id":             405,
-					"unique_id":      "FLMdongtianfudi_15549",
-					"channel":        "FLMdongtianfudi",
-					"ai_title":       "\u4f0d\u51cc\u67ab\u5409\u4ed6\u8bad\u7ec3\u8425\uff1a\u7436\u97f3\u901f\u6210\uff0c\u524d\u536b\u7f16\u914d\uff0c\u52a9\u4f60\u5f39\u594f\u66f4\u51fa\u5f69\uff01",
-					"ai_description": "\u8fd8\u5728\u4e3a\u5409\u4ed6\u7436\u97f3\u53d1\u6101\u5417\uff1f\u60f3\u8ba9\u4f60\u7684\u5409\u4ed6\u6f14\u594f\u66f4\u6709\u4e2a\u6027\uff0c\u7f16\u66f2\u66f4\u5177\u521b\u610f\uff1f\u4f0d\u51cc\u67ab\u8001\u5e08\u7684\u8bad\u7ec3\u8425\u6765\u5566\uff01\u8fd9\u91cc\u4e0d\u4ec5\u6709\u7cfb\u7edf\u7684\u7436\u97f3\u8bad\u7ec3\uff0c\u8ba9\u4f60\u6307\u5c16\u6d41\u7545\uff0c\u66f4\u80fd\u6df1\u5165\u5b66\u4e60\u524d\u536b\u5409\u4ed6\u7f16\u914d\u4e0e\u521b\u4f5c\uff0c\u624b\u628a\u624b\u6559\u4f60\u5982\u4f55\u5c06\u8111\u6d77\u4e2d\u7684\u65cb\u5f8b\u53d8\u6210\u52a8\u542c\u7684\u4e50\u7ae0\u3002\u4ece\u57fa\u672c\u529f\u5230\u98ce\u683c\u5851\u9020\uff0c\u52a9\u4f60\u5f7b\u5e95\u7a81\u7834\u74f6\u9888\uff0c\u8ba9\u4f60\u7684\u5409\u4ed6\u6c34\u5e73\u98de\u901f\u63d0\u5347\uff0c\u5f39\u594f\u51fa\u4e13\u5c5e\u4e8e\u4f60\u7684\u72ec\u7279\u97f3\u4e50\u98ce\u683c\uff01",
-					"ai_tags": []string{
-						"\u4f0d\u51cc\u67ab",
-						"\u5409\u4ed6\u6559\u5b66",
-						"\u7436\u97f3\u7ec3\u4e60",
-						"\u7f16\u66f2\u6280\u5de7",
-						"\u4e50\u5668\u5b66\u4e60",
-						"\u97f3\u4e50\u63d0\u5347",
-						"\u5409\u4ed6\u521b\u4f5c",
-					},
-					"image_urls": []string{
-						"https://image.jkai.de/2025/12/b98eae0c320edf413bc31a67874161d9.jpg",
-					},
-					"original_title":   "\u4f0d\u51cc\u67ab\u7436\u97f3\u8bad\u7ec3\u8425+\u524d\u536b\u5409\u4ed6\u7f16\u914d\u4e0e\u521b\u4f5c\uff0c\u97f3\u4e50\u6280\u5de7+\u521b\u4f5c\u65b9\u6cd5+\u6f14\u594f\u63d0\u5347",
-					"original_content": "\u4f0d\u51cc\u67ab\u7436\u97f3\u8bad\u7ec3\u8425+\u524d\u536b\u5409\u4ed6\u7f16\u914d\u4e0e\u521b\u4f5c\uff0c\u97f3\u4e50\u6280\u5de7+\u521b\u4f5c\u65b9\u6cd5+\u6f14\u594f\u63d0\u5347\u7ed3\u5408\u7436\u97f3\u8bad\u7ec3\u4e0e\u5409\u4ed6\u7f16\u914d\uff0c\u63d0\u4f9b\u5b9e\u9645\u7684\u6280\u5de7\u4e0e\u521b\u4f5c\u6307\u5357\uff0c\u5e2e\u52a9\u5409\u4ed6\u7231\u597d\u8005\u5728\u6f14\u594f\u4e0e\u4f5c\u66f2\u4e0a\u5b9e\u73b0\u7a81\u7834\uff0c\u63d0\u5347\u97f3\u4e50\u8868\u73b0\u529b\u4e0e\u4e2a\u6027\u98ce\u683c\u3002",
-					"my_pan_url":       "https://pan.quark.cn/s/b9a1c92e1936",
-					"my_pan_password":  "",
-					"views":            714,
-					"status":           1,
-					"status_text":      "\u5df2\u5b8c\u6210",
-					"category":         "\u89c6\u9891",
-					"created_at":       "2025-12-25 10:00:02",
-				},
-			},
+			"items": items,
 		},
 	})
 }
 
 func (sa *SoulaPlugin) handleResource(c *gin.Context) {
+	uniqueID := c.Param("param")
+	var resource CollectedResource
+	if err := sa.DB.Preload("Links").Where("unique_id = ?", uniqueID).First(&resource).Error; err != nil {
+		c.JSON(404, gin.H{"code": 404, "message": "Resource not found"})
+		return
+	}
+
+	// Increment views
+	sa.DB.Model(&resource).UpdateColumn("views", gorm.Expr("views + ?", 1))
+
+	mergedByType := make(map[string][]gin.H)
+	for _, link := range resource.Links {
+		var images []string
+		json.Unmarshal([]byte(link.Images), &images)
+
+		mergedByType[link.Type] = append(mergedByType[link.Type], gin.H{
+			"url":      link.URL,
+			"password": link.Password,
+			"note":     link.Note,
+			"datetime": link.Datetime,
+			"source":   link.Source,
+			"images":   images,
+		})
+	}
+
+	// Parse tags and images for the main resource
+	var tags []string
+	json.Unmarshal([]byte(resource.AiTags), &tags)
+
 	c.JSON(200, gin.H{
 		"code":    0,
 		"message": "success",
 		"data": gin.H{
-			"total": 1,
-			"merged_by_type": gin.H{
-				"aliyun": []gin.H{
-					{
-						"url":      "https://www.alipan.com/s/B6t4whnnVQz",
-						"password": "",
-						"note":     "【学堂在线】算法设计与分析 - 清华大学",
-						"datetime": "2025-12-30T14:00:59Z",
-						"source":   "tg:shareAliyun",
-						"images": []string{
-							"https://cdn5.telesco.pe/file/lgM3olc5_0X9492Fk-dvoWRiEsiikO4KbEtPl4Wiu8BEArHckdUUBW2wDrqiQ4KBhqWOsX2r_3ar3fNkvShZAVDBZayPM1CYw62zVZjkvbKQcf3_qt9eSpOMtJwMdMclnrrdfXX5VgAgnE0kP_wNtIVM5szVhIhUMbsnShjh613cwTakHtNvQi9TnIC9Dd731voaBRI5F4RMxCuMwirKMEWMTzKKDmixVlEIYW_Wr3kp070SIzwvPyEcCNkdTRG5A77wRJyaiG7OxRGiTmUZMzz9W_S4RJt1IsCfwT4kmPxBfu8X9mouRlt9KXT6-WjH0yIWzchNBwFEfiKz3ZpNuQ.jpg",
-						},
-					},
-				},
-			},
+			"id":               resource.ID,
+			"unique_id":        resource.UniqueID,
+			"ai_title":         resource.AiTitle,
+			"ai_description":   resource.AiDescription,
+			"ai_tags":          tags,
+			"image_url":        resource.ImageUrl,
+			"original_title":   resource.OriginalTitle,
+			"original_content": resource.OriginalContent,
+			"my_pan_url":       resource.MyPanURL,
+			"my_pan_password":  resource.MyPanPassword,
+			"views":            resource.Views,
+			"category":         resource.Category,
+			"created_at":       resource.CreatedAt.Format("2006-01-02 15:04:05"),
+			"total_links":      len(resource.Links),
+			"merged_by_type":   mergedByType,
 		},
 	})
 }
 
 func (sa *SoulaPlugin) handleResources(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "10"))
+	category := c.Query("category")
+
+	query := sa.DB.Model(&CollectedResource{})
+	if category != "" {
+		query = query.Where("category = ?", category)
+	}
+
+	sort := c.DefaultQuery("sort", "latest")
+	order := "created_at desc"
+	if sort == "hot" {
+		order = "views desc"
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var resources []CollectedResource
+	offset := (page - 1) * perPage
+	query.Order(order).Offset(offset).Limit(perPage).Find(&resources)
+
+	var items []gin.H
+	for _, res := range resources {
+		var tags []string
+		json.Unmarshal([]byte(res.AiTags), &tags)
+
+		items = append(items, gin.H{
+			"id":               res.ID,
+			"unique_id":        res.UniqueID,
+			"channel":          res.Channel,
+			"ai_title":         res.AiTitle,
+			"ai_description":   res.AiDescription,
+			"ai_tags":          tags,
+			"image_url":        res.ImageUrl,
+			"original_title":   res.OriginalTitle,
+			"original_content": res.OriginalContent,
+			"my_pan_url":       res.MyPanURL,
+			"my_pan_password":  res.MyPanPassword,
+			"views":            res.Views,
+			"status":           res.Status,
+			"status_text":      res.StatusText,
+			"category":         res.Category,
+			"created_at":       res.CreatedAt.Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	lastPage := int(total) / perPage
+	if int(total)%perPage != 0 {
+		lastPage++
+	}
+
 	c.JSON(200, gin.H{
 		"code":    0,
 		"message": "success",
 		"data": gin.H{
-			"items":        []gin.H{},
-			"total":        0,
-			"current_page": 1,
-			"last_page":    1,
-			"per_page":     10,
+			"items":        items,
+			"total":        total,
+			"current_page": page,
+			"last_page":    lastPage,
+			"per_page":     perPage,
 		},
 	})
 }
