@@ -7,6 +7,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"os"
+	"cmp"
 	"pansou/model"
 	"pansou/plugin"
 	"path/filepath"
@@ -112,7 +113,7 @@ func (sa *SoulaPlugin) handleDailyHotResources(c *gin.Context) {
 		return
 	}
 
-	var items []gin.H
+	items := make([]gin.H, 0)
 	for _, res := range resources {
 		items = append(items, gin.H{
 			"id":        res.ID,
@@ -136,22 +137,16 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 	// 1. Parse pagination parameters
 	pageStr := c.DefaultQuery("page", "1")
 	page, _ := strconv.Atoi(pageStr)
-	if page < 1 {
-		page = 1
-	}
+	page = cmp.Or(page, 1)
 
-	pageSizeStr := c.DefaultQuery("pageSize", "5")
+	pageSizeStr := c.DefaultQuery("pageSize", "10")
 	pageSize, _ := strconv.Atoi(pageSizeStr)
-	if pageSize < 1 {
-		pageSize = 5
-	}
+	pageSize = cmp.Or(pageSize, 10)
 
 	// 2. Parse limits for items per category
 	limitStr := c.DefaultQuery("limit", "24")
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit <= 0 {
-		limit = 24
-	}
+	limit, _ := strconv.Atoi(limitStr)
+limit = cmp.Or(limit, 24)
 
 	// 3. Count total categories
 	var total int64
@@ -185,6 +180,7 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 			})
 		}
 		catList = append(catList, gin.H{
+			"id":    cat.ID,
 			"name":  cat.Name,
 			"icon":  cat.Icon,
 			"items": itemsJson,
@@ -223,9 +219,9 @@ func (sa *SoulaPlugin) handleResourcesRandom(c *gin.Context) {
 		return
 	}
 
-	var items []gin.H
+	items := make([]gin.H, 0)
 	for _, resource := range resources {
-		var tags []string
+		tags := make([]string, 0)
 		json.Unmarshal([]byte(resource.AiTags), &tags)
 
 		item := gin.H{
@@ -238,8 +234,8 @@ func (sa *SoulaPlugin) handleResourcesRandom(c *gin.Context) {
 			"image_urls":       resource.ImageUrl,
 			"original_title":   resource.OriginalTitle,
 			"original_content": resource.OriginalContent,
-			"my_pan_url":       resource.MyPanURL,
-			"my_pan_password":  resource.MyPanPassword,
+			"pan_url":          resource.PanURL,
+			"pan_password":     resource.PanPassword,
 			"views":            resource.Views,
 			"status":           resource.Status,
 			"status_text":      resource.StatusText,
@@ -271,21 +267,18 @@ func (sa *SoulaPlugin) handleResource(c *gin.Context) {
 
 	mergedByType := make(map[string][]gin.H)
 	for _, link := range resource.Links {
-		var images []string
-		json.Unmarshal([]byte(link.Images), &images)
-
 		mergedByType[link.Type] = append(mergedByType[link.Type], gin.H{
 			"url":      link.URL,
 			"password": link.Password,
 			"note":     link.Note,
 			"datetime": link.Datetime,
 			"source":   link.Source,
-			"images":   images,
+			"image":   link.Image,
 		})
 	}
 
-	// Parse tags and images for the main resource
-	var tags []string
+	// Parse tags for the main resource
+	tags := make([]string, 0)
 	json.Unmarshal([]byte(resource.AiTags), &tags)
 
 	c.JSON(200, gin.H{
@@ -300,8 +293,8 @@ func (sa *SoulaPlugin) handleResource(c *gin.Context) {
 			"image_url":        resource.ImageUrl,
 			"original_title":   resource.OriginalTitle,
 			"original_content": resource.OriginalContent,
-			"my_pan_url":       resource.MyPanURL,
-			"my_pan_password":  resource.MyPanPassword,
+			"pan_url":          resource.PanURL,
+			"pan_password":     resource.PanPassword,
 			"views":            resource.Views,
 			"category":         resource.Category,
 			"created_at":       resource.CreatedAt.Format("2006-01-02 15:04:05"),
@@ -334,9 +327,9 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	offset := (page - 1) * perPage
 	query.Order(order).Offset(offset).Limit(perPage).Find(&resources)
 
-	var items []gin.H
+	items := make([]gin.H, 0)
 	for _, res := range resources {
-		var tags []string
+		tags := make([]string, 0)
 		json.Unmarshal([]byte(res.AiTags), &tags)
 
 		items = append(items, gin.H{
@@ -349,8 +342,8 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 			"image_url":        res.ImageUrl,
 			"original_title":   res.OriginalTitle,
 			"original_content": res.OriginalContent,
-			"my_pan_url":       res.MyPanURL,
-			"my_pan_password":  res.MyPanPassword,
+			"pan_url":          res.PanURL,
+			"pan_password":     res.PanPassword,
 			"views":            res.Views,
 			"status":           res.Status,
 			"status_text":      res.StatusText,

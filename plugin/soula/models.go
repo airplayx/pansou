@@ -31,8 +31,8 @@ type CollectedResource struct {
 	ImageUrl        string         `json:"image_url"`
 	OriginalTitle   string         `json:"original_title"`
 	OriginalContent string         `json:"original_content"`
-	MyPanURL        string         `json:"my_pan_url"`
-	MyPanPassword   string         `json:"my_pan_password"`
+	PanURL        string         `json:"pan_url"`
+	PanPassword   string         `json:"pan_password"`
 	Views           int            `json:"views"`
 	Status          int            `json:"status"`
 	StatusText      string         `json:"status_text"`
@@ -51,7 +51,7 @@ type ResourceLink struct {
 	Note       string `json:"note"`
 	Datetime   string `json:"datetime"`
 	Source     string `json:"source"`
-	Images     string `json:"images"` // JSON string
+	Image     string `json:"image"` // JSON string
 
 	gorm.Model
 }
