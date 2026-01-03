@@ -19,42 +19,42 @@ import (
 )
 
 const (
-	PluginName      = "dyyj"
-	DisplayName     = "电影云集"
-	Description     = "电影云集 - 影视资源网盘链接搜索"
-	BaseURL         = "https://bbs.dyyjmax.org"
-	SearchPath      = "/?q=%s"
-	UserAgent       = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-	MaxResults      = 100
-	MaxConcurrency  = 100
-	RequestTimeout  = 30 * time.Second
-	
+	PluginName     = "dyyj"
+	DisplayName    = "电影云集"
+	Description    = "电影云集 - 影视资源网盘链接搜索"
+	BaseURL        = "https://bbs.dyyjmax.org"
+	SearchPath     = "/?q=%s"
+	UserAgent      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+	MaxResults     = 100
+	MaxConcurrency = 100
+	RequestTimeout = 30 * time.Second
+
 	// HTTP连接池配置（性能优化）
-	MaxIdleConns        = 100  // 最大空闲连接数
-	MaxIdleConnsPerHost = 100   // 每个主机的最大空闲连接数
-	MaxConnsPerHost     = 100   // 每个主机的最大连接数
-	IdleConnTimeout     = 90 * time.Second  // 空闲连接超时
-	TLSHandshakeTimeout = 10 * time.Second  // TLS握手超时
-	ExpectContinueTimeout = 1 * time.Second // Expect: 100-continue超时
+	MaxIdleConns          = 100              // 最大空闲连接数
+	MaxIdleConnsPerHost   = 100              // 每个主机的最大空闲连接数
+	MaxConnsPerHost       = 100              // 每个主机的最大连接数
+	IdleConnTimeout       = 90 * time.Second // 空闲连接超时
+	TLSHandshakeTimeout   = 10 * time.Second // TLS握手超时
+	ExpectContinueTimeout = 1 * time.Second  // Expect: 100-continue超时
 )
 
 // 预编译的正则表达式（性能优化：避免重复编译）
 var (
 	// 提取文章ID的正则
 	postIDRegex = regexp.MustCompile(`/d/(\d+)`)
-	
+
 	// 提取noscript标签的正则
 	noscriptRegex = regexp.MustCompile(`<noscript[^>]*id=["']flarum-content["'][^>]*>([\s\S]*?)</noscript>`)
-	
+
 	// 提取li标签内链接的正则
 	liLinkRegex = regexp.MustCompile(`<li[^>]*>\s*<a[^>]*href=["']([^"']*\/d\/[^"']*)["'][^>]*>([\s\S]*?)</a>\s*</li>`)
-	
+
 	// 清理HTML标签的正则
 	htmlTagRegex = regexp.MustCompile(`<[^>]+>`)
-	
+
 	// 提取链接的正则
 	linkHrefRegex = regexp.MustCompile(`href=["']([^"']*\/d\/[^"']*)["']`)
-	
+
 	// 提取发布时间meta标签的正则
 	publishTimeRegexes = []*regexp.Regexp{
 		regexp.MustCompile(`<meta\s+name=["']article:published_time["']\s+content=["']([^"']+)["']`),
@@ -62,7 +62,7 @@ var (
 		regexp.MustCompile(`<meta\s+name=["']article:updated_time["']\s+content=["']([^"']+)["']`),
 		regexp.MustCompile(`<time[^>]*datetime=["']([^"']+)["']`),
 	}
-	
+
 	// 网盘链接匹配模式（预编译，性能优化）
 	networkDiskPatterns = []struct {
 		name    string
@@ -99,7 +99,7 @@ func NewDyyjPlugin() *DyyjPlugin {
 	p := &DyyjPlugin{
 		BaseAsyncPlugin: plugin.NewBaseAsyncPlugin(PluginName, 2), // 质量良好，优先级2
 		debugMode:       debugMode,
-		cacheTTL:        30 * time.Minute, // 详情页缓存30分钟
+		cacheTTL:        30 * time.Minute,            // 详情页缓存30分钟
 		optimizedClient: createOptimizedHTTPClient(), // 创建优化的HTTP客户端
 	}
 
@@ -115,7 +115,7 @@ func createOptimizedHTTPClient() *http.Client {
 		IdleConnTimeout:       IdleConnTimeout,
 		TLSHandshakeTimeout:   TLSHandshakeTimeout,
 		ExpectContinueTimeout: ExpectContinueTimeout,
-		ForceAttemptHTTP2:     true, // 启用HTTP/2支持
+		ForceAttemptHTTP2:     true,  // 启用HTTP/2支持
 		DisableKeepAlives:     false, // 启用Keep-Alive连接复用
 	}
 
@@ -260,7 +260,7 @@ func (p *DyyjPlugin) executeSearch(client *http.Client, keyword string) ([]model
 	bodyString := string(bodyBytes)
 	if p.debugMode {
 		log.Printf("[DYYJ] 响应体大小: %d 字节", len(bodyString))
-		
+
 		// 保存完整HTML到文件用于分析
 		filename := fmt.Sprintf("./dyyj_search_%s_%d.html", url.QueryEscape(keyword), time.Now().Unix())
 		if err := os.WriteFile(filename, bodyBytes, 0644); err == nil {
@@ -268,14 +268,14 @@ func (p *DyyjPlugin) executeSearch(client *http.Client, keyword string) ([]model
 		} else {
 			log.Printf("[DYYJ] 保存HTML文件失败: %v", err)
 		}
-		
+
 		// 输出HTML的前2000个字符用于调试
 		previewLen := 2000
 		if len(bodyString) < previewLen {
 			previewLen = len(bodyString)
 		}
 		log.Printf("[DYYJ] HTML内容预览（前%d字符）:\n%s", previewLen, bodyString[:previewLen])
-		
+
 		// 检查关键元素是否存在
 		hasNoscript := strings.Contains(bodyString, "<noscript")
 		hasFlarumContent := strings.Contains(bodyString, "flarum-content")
@@ -283,13 +283,13 @@ func (p *DyyjPlugin) executeSearch(client *http.Client, keyword string) ([]model
 		hasUL := strings.Contains(bodyString, "<ul>")
 		hasLI := strings.Contains(bodyString, "<li>")
 		hasIDFlarumContent := strings.Contains(bodyString, "id=\"flarum-content\"") || strings.Contains(bodyString, "id='flarum-content'")
-		log.Printf("[DYYJ] HTML结构检查: noscript=%v, flarum-content=%v, id=flarum-content=%v, container=%v, ul=%v, li=%v", 
+		log.Printf("[DYYJ] HTML结构检查: noscript=%v, flarum-content=%v, id=flarum-content=%v, container=%v, ul=%v, li=%v",
 			hasNoscript, hasFlarumContent, hasIDFlarumContent, hasContainer, hasUL, hasLI)
-		
+
 		// 查找所有noscript标签
 		noscriptCount := strings.Count(bodyString, "<noscript")
 		log.Printf("[DYYJ] 找到 %d 个noscript标签", noscriptCount)
-		
+
 		// 尝试查找所有包含flarum-content的noscript
 		if hasNoscript {
 			noscriptIndex := 0
@@ -304,25 +304,25 @@ func (p *DyyjPlugin) executeSearch(client *http.Client, keyword string) ([]model
 				if noscriptEnd > 0 {
 					noscriptContent := bodyString[noscriptStart : noscriptStart+noscriptEnd+10]
 					noscriptIndex++
-					
+
 					hasFlarumInNoscript := strings.Contains(noscriptContent, "flarum-content")
 					hasULInNoscript := strings.Contains(noscriptContent, "<ul>")
 					hasLIInNoscript := strings.Contains(noscriptContent, "<li>")
-					
+
 					previewLen := 1000
 					if len(noscriptContent) < previewLen {
 						previewLen = len(noscriptContent)
 					}
-					log.Printf("[DYYJ] noscript标签 #%d 内容预览（前%d字符，flarum-content=%v, ul=%v, li=%v）:\n%s", 
+					log.Printf("[DYYJ] noscript标签 #%d 内容预览（前%d字符，flarum-content=%v, ul=%v, li=%v）:\n%s",
 						noscriptIndex, previewLen, hasFlarumInNoscript, hasULInNoscript, hasLIInNoscript, noscriptContent[:previewLen])
-					
+
 					start = noscriptStart + noscriptEnd + 10
 				} else {
 					break
 				}
 			}
 		}
-		
+
 		// 查找所有包含/d/的链接（使用预编译的正则）
 		matches := linkHrefRegex.FindAllStringSubmatch(bodyString, -1)
 		log.Printf("[DYYJ] 使用正则表达式找到 %d 个包含'/d/'的链接", len(matches))
@@ -409,7 +409,7 @@ func (p *DyyjPlugin) parseSearchResults(doc *goquery.Document, htmlContent strin
 		"ul li",
 		"li",
 	}
-	
+
 	// 如果goquery无法解析noscript，尝试直接使用正则表达式从HTML中提取
 	if p.debugMode {
 		log.Printf("[DYYJ] 如果选择器都失败，将使用正则表达式从HTML中提取链接")
@@ -443,17 +443,17 @@ func (p *DyyjPlugin) parseSearchResults(doc *goquery.Document, htmlContent strin
 		}
 	}
 
-		if usedSelector == "" {
-			if p.debugMode {
-				log.Printf("[DYYJ] 所有选择器都未找到结果，使用正则表达式从HTML中提取链接")
-			}
-			// 使用正则表达式直接从HTML中提取链接（因为goquery可能无法解析noscript）
-			results = p.parseSearchResultsWithRegex(htmlContent)
-			if p.debugMode {
-				log.Printf("[DYYJ] 正则表达式解析完成，获取到 %d 个结果", len(results))
-			}
-			return results, nil
+	if usedSelector == "" {
+		if p.debugMode {
+			log.Printf("[DYYJ] 所有选择器都未找到结果，使用正则表达式从HTML中提取链接")
 		}
+		// 使用正则表达式直接从HTML中提取链接（因为goquery可能无法解析noscript）
+		results = p.parseSearchResultsWithRegex(htmlContent)
+		if p.debugMode {
+			log.Printf("[DYYJ] 正则表达式解析完成，获取到 %d 个结果", len(results))
+		}
+		return results, nil
+	}
 
 	if p.debugMode {
 		log.Printf("[DYYJ] 使用选择器: %s，找到 %d 个元素", usedSelector, foundCount)
@@ -486,10 +486,10 @@ func (p *DyyjPlugin) parseSearchResults(doc *goquery.Document, htmlContent strin
 // parseSearchResultsWithRegex 使用正则表达式从HTML中提取搜索结果
 func (p *DyyjPlugin) parseSearchResultsWithRegex(htmlContent string) []model.SearchResult {
 	var results []model.SearchResult
-	
+
 	// 首先尝试找到noscript#flarum-content标签内的内容（使用预编译的正则）
 	noscriptMatches := noscriptRegex.FindStringSubmatch(htmlContent)
-	
+
 	var searchArea string
 	if len(noscriptMatches) > 1 {
 		searchArea = noscriptMatches[1]
@@ -503,30 +503,30 @@ func (p *DyyjPlugin) parseSearchResultsWithRegex(htmlContent string) []model.Sea
 			log.Printf("[DYYJ] 未找到noscript#flarum-content标签，使用整个HTML")
 		}
 	}
-	
+
 	// 匹配 <li> 标签内的链接（使用预编译的正则）
 	matches := liLinkRegex.FindAllStringSubmatch(searchArea, -1)
-	
+
 	if p.debugMode {
 		log.Printf("[DYYJ] 正则表达式找到 %d 个匹配项", len(matches))
 	}
-	
+
 	for i, match := range matches {
 		if len(results) >= MaxResults {
 			break
 		}
-		
+
 		if len(match) >= 3 {
 			href := match[1]
 			title := strings.TrimSpace(match[2])
 			// 清理HTML标签（使用预编译的正则）
 			title = htmlTagRegex.ReplaceAllString(title, "")
 			title = strings.TrimSpace(title)
-			
+
 			if title == "" || !strings.Contains(href, "/d/") {
 				continue
 			}
-			
+
 			// 确保是完整URL
 			if !strings.HasPrefix(href, "http") {
 				if strings.HasPrefix(href, "/") {
@@ -535,31 +535,31 @@ func (p *DyyjPlugin) parseSearchResultsWithRegex(htmlContent string) []model.Sea
 					href = BaseURL + "/" + href
 				}
 			}
-			
+
 			// 从href中提取ID
 			postID := p.extractPostID(href)
 			if postID == "" {
 				postID = fmt.Sprintf("regex-%d", i+1)
 			}
-			
+
 			result := model.SearchResult{
-				Title:     title,
-				Content:   fmt.Sprintf("详情页: %s", href),
-				Channel:   "",
-				UniqueID:  fmt.Sprintf("%s-%s", p.Name(), postID),
-				Datetime:  time.Time{}, // 初始化为零值，稍后从详情页获取
-				Links:     []model.Link{},
-				Tags:      []string{},
+				Title:    title,
+				Content:  fmt.Sprintf("详情页: %s", href),
+				Channel:  "",
+				UniqueID: fmt.Sprintf("%s-%s", p.Name(), postID),
+				Datetime: time.Time{}, // 初始化为零值，稍后从详情页获取
+				Links:    []model.Link{},
+				Tags:     []string{},
 			}
-			
+
 			results = append(results, result)
-			
+
 			if p.debugMode {
 				log.Printf("[DYYJ] 正则解析结果 %d: %s -> %s", i+1, title, href)
 			}
 		}
 	}
-	
+
 	return results
 }
 
@@ -607,16 +607,16 @@ func (p *DyyjPlugin) parseResultItem(s *goquery.Selection, index int) *model.Sea
 		postID = fmt.Sprintf("unknown-%d", index)
 	}
 
-		// 构建初始结果对象（详情页链接稍后获取）
-		result := model.SearchResult{
-			Title:     title,
-			Content:   fmt.Sprintf("详情页: %s", detailURL),
-			Channel:   "", // 插件搜索结果必须为空字符串（按开发指南要求）
-			UniqueID:  fmt.Sprintf("%s-%s", p.Name(), postID),
-			Datetime:  time.Time{}, // 初始化为零值，稍后从详情页获取
-			Links:     []model.Link{}, // 先为空，详情页处理后添加
-			Tags:      []string{},
-		}
+	// 构建初始结果对象（详情页链接稍后获取）
+	result := model.SearchResult{
+		Title:    title,
+		Content:  fmt.Sprintf("详情页: %s", detailURL),
+		Channel:  "", // 插件搜索结果必须为空字符串（按开发指南要求）
+		UniqueID: fmt.Sprintf("%s-%s", p.Name(), postID),
+		Datetime: time.Time{},    // 初始化为零值，稍后从详情页获取
+		Links:    []model.Link{}, // 先为空，详情页处理后添加
+		Tags:     []string{},
+	}
 
 	return &result
 }
@@ -643,7 +643,7 @@ func (p *DyyjPlugin) filterByTitleKeyword(results []model.SearchResult, keyword 
 	filtered := make([]model.SearchResult, 0, len(results))
 	for _, result := range results {
 		lowerTitle := strings.ToLower(result.Title)
-		
+
 		// 检查每个关键词是否都在标题中
 		matched := true
 		for _, kw := range keywords {
@@ -685,7 +685,7 @@ func (p *DyyjPlugin) fetchDetailLinks(client *http.Client, searchResults []model
 		wg.Add(1)
 		go func(r model.SearchResult) {
 			defer wg.Done()
-			semaphore <- struct{}{} // 获取信号量
+			semaphore <- struct{}{}        // 获取信号量
 			defer func() { <-semaphore }() // 释放信号量
 
 			// 从Content中提取详情页URL
@@ -883,11 +883,11 @@ func (p *DyyjPlugin) extractPublishTime(htmlContent string) time.Time {
 			timeStr := strings.TrimSpace(matches[1])
 			// 尝试多种时间格式
 			timeFormats := []string{
-				time.RFC3339,                    // 2006-01-02T15:04:05Z07:00
-				"2006-01-02T15:04:05+00:00",    // 2024-05-05T17:04:11+00:00
-				"2006-01-02T15:04:05Z",         // 2006-01-02T15:04:05Z
-				"2006-01-02 15:04:05",         // 2006-01-02 15:04:05
-				"2006-01-02",                   // 2006-01-02
+				time.RFC3339,                // 2006-01-02T15:04:05Z07:00
+				"2006-01-02T15:04:05+00:00", // 2024-05-05T17:04:11+00:00
+				"2006-01-02T15:04:05Z",      // 2006-01-02T15:04:05Z
+				"2006-01-02 15:04:05",       // 2006-01-02 15:04:05
+				"2006-01-02",                // 2006-01-02
 			}
 
 			for _, format := range timeFormats {
@@ -950,7 +950,7 @@ func (p *DyyjPlugin) parseNetworkDiskLinks(htmlContent string) []model.Link {
 			}
 
 			strongText := strings.TrimSpace(strongEl.Text())
-			
+
 			if p.debugMode {
 				log.Printf("[DYYJ]   检查p标签 %d，strong文本: %s", j+1, strongText)
 			}
@@ -966,7 +966,7 @@ func (p *DyyjPlugin) parseNetworkDiskLinks(htmlContent string) []model.Link {
 
 			// 在当前p标签或下一个p标签中查找链接
 			var linkEl *goquery.Selection
-			
+
 			// 先检查当前p标签
 			linkEl = pEl.Find("a")
 			if linkEl.Length() == 0 {
@@ -991,17 +991,17 @@ func (p *DyyjPlugin) parseNetworkDiskLinks(htmlContent string) []model.Link {
 					if urlType != "others" {
 						// 提取密码
 						password := p.extractPasswordFromURL(linkURL)
-						
+
 						link := model.Link{
 							Type:     urlType,
 							URL:      linkURL,
 							Password: password,
 						}
-						
+
 						if p.debugMode {
 							log.Printf("[DYYJ]   找到网盘链接: %s (%s, 密码: %s)", linkURL, urlType, password)
 						}
-						
+
 						links = append(links, link)
 					} else if p.debugMode {
 						log.Printf("[DYYJ]   链接类型为others，跳过: %s", linkURL)
@@ -1173,4 +1173,3 @@ func (p *DyyjPlugin) determineCloudType(url string) string {
 		return "others"
 	}
 }
-

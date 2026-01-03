@@ -25,14 +25,14 @@ type HotSearchItem struct {
 type CollectedResource struct {
 	UniqueID        string         `json:"unique_id" gorm:"uniqueIndex"`
 	Channel         string         `json:"channel"`
-	AiTitle         string         `json:"ai_title"`
-	AiDescription   string         `json:"ai_description"`
-	AiTags          string         `json:"ai_tags"` // JSON string or comma separated
+	Title           string         `json:"title"`
+	Description     string         `json:"description"`
+	Tags            string         `json:"tags"` // JSON string or comma separated
 	ImageUrl        string         `json:"image_url"`
 	OriginalTitle   string         `json:"original_title"`
 	OriginalContent string         `json:"original_content"`
-	PanURL        string         `json:"pan_url"`
-	PanPassword   string         `json:"pan_password"`
+	PanURL          string         `json:"pan_url"`
+	PanPassword     string         `json:"pan_password"`
 	Views           int            `json:"views"`
 	Status          int            `json:"status"`
 	StatusText      string         `json:"status_text"`
@@ -51,7 +51,7 @@ type ResourceLink struct {
 	Note       string `json:"note"`
 	Datetime   string `json:"datetime"`
 	Source     string `json:"source"`
-	Image     string `json:"image"` // JSON string
+	Image      string `json:"image"` // JSON string
 
 	gorm.Model
 }

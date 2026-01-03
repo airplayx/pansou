@@ -49,11 +49,11 @@ type SearchAPIResponse struct {
 
 // ShareItem 搜索结果项
 type ShareItem struct {
-	HSID      string `json:"hsid"`      // 海搜ID，用于获取具体链接
-	Platform  string `json:"platform"`  // 网盘类型
+	HSID      string `json:"hsid"`       // 海搜ID，用于获取具体链接
+	Platform  string `json:"platform"`   // 网盘类型
 	ShareName string `json:"share_name"` // 分享名称，可能包含HTML标签
-	StatFile  int    `json:"stat_file"` // 文件数量
-	StatSize  int64  `json:"stat_size"` // 总大小(字节)
+	StatFile  int    `json:"stat_file"`  // 文件数量
+	StatSize  int64  `json:"stat_size"`  // 总大小(字节)
 }
 
 // FetchAPIResponse 链接获取API响应结构
@@ -84,7 +84,7 @@ type LinkResult struct {
 
 func init() {
 	p := &HaisouPlugin{
-		BaseAsyncPlugin: plugin.NewBaseAsyncPlugin("haisou", 3), 
+		BaseAsyncPlugin: plugin.NewBaseAsyncPlugin("haisou", 3),
 	}
 	plugin.RegisterGlobalPlugin(p)
 }

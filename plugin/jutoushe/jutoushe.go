@@ -22,7 +22,7 @@ type JutoushePlugin struct {
 
 func init() {
 	p := &JutoushePlugin{
-		BaseAsyncPlugin: plugin.NewBaseAsyncPlugin("jutoushe", 1), 
+		BaseAsyncPlugin: plugin.NewBaseAsyncPlugin("jutoushe", 1),
 	}
 	plugin.RegisterGlobalPlugin(p)
 }
@@ -89,7 +89,7 @@ func (p *JutoushePlugin) searchImpl(client *http.Client, keyword string, ext map
 		linkElem := s.Find(".a a.main")
 		title := strings.TrimSpace(linkElem.Text())
 		detailPath, exists := linkElem.Attr("href")
-		
+
 		if !exists || title == "" {
 			return // 跳过无效项
 		}
@@ -106,13 +106,13 @@ func (p *JutoushePlugin) searchImpl(client *http.Client, keyword string, ext map
 
 		// 创建搜索结果（先不获取下载链接）
 		result := model.SearchResult{
-			UniqueID:  uniqueID,
-			Title:     title,
-			Content:   fmt.Sprintf("剧透社影视资源：%s", title),
-			Datetime:  publishTime,
-			Tags:      p.extractTags(title),
-			Links:     []model.Link{}, // 稍后从详情页获取
-			Channel:   "",             // 插件搜索结果必须为空字符串
+			UniqueID: uniqueID,
+			Title:    title,
+			Content:  fmt.Sprintf("剧透社影视资源：%s", title),
+			Datetime: publishTime,
+			Tags:     p.extractTags(title),
+			Links:    []model.Link{}, // 稍后从详情页获取
+			Channel:  "",             // 插件搜索结果必须为空字符串
 		}
 
 		// 异步获取详情页的下载链接
@@ -124,7 +124,7 @@ func (p *JutoushePlugin) searchImpl(client *http.Client, keyword string, ext map
 
 	// 9. 关键词过滤
 	filteredResults := plugin.FilterResultsByKeyword(results, keyword)
-	
+
 	return filteredResults, nil
 }
 
@@ -255,7 +255,7 @@ func (p *JutoushePlugin) extractPassword(url string) string {
 			return matches[1]
 		}
 	}
-	
+
 	// 其他网盘暂不处理提取码
 	return ""
 }
@@ -273,9 +273,9 @@ func (p *JutoushePlugin) isValidNetworkDriveURL(url string) bool {
 
 	// 检查是否包含已知网盘域名
 	knownDomains := []string{
-		"pan.quark.cn", "drive.uc.cn", "pan.baidu.com", 
+		"pan.quark.cn", "drive.uc.cn", "pan.baidu.com",
 		"aliyundrive.com", "alipan.com", "pan.xunlei.com",
-		"cloud.189.cn", "115.com", "123pan.com", 
+		"cloud.189.cn", "115.com", "123pan.com",
 		"caiyun.139.com", "mypikpak.com",
 	}
 
@@ -296,7 +296,7 @@ func (p *JutoushePlugin) extractIDFromURL(urlPath string) string {
 	if len(matches) > 2 {
 		return matches[2]
 	}
-	
+
 	// 如果无法提取，使用完整路径作为ID
 	return strings.ReplaceAll(urlPath, "/", "_")
 }
@@ -304,7 +304,7 @@ func (p *JutoushePlugin) extractIDFromURL(urlPath string) string {
 // extractTags 从标题中提取标签
 func (p *JutoushePlugin) extractTags(title string) []string {
 	var tags []string
-	
+
 	// 提取分类标签
 	categoryPattern := regexp.MustCompile(`【([^】]+)】`)
 	matches := categoryPattern.FindAllStringSubmatch(title, -1)
@@ -313,12 +313,12 @@ func (p *JutoushePlugin) extractTags(title string) []string {
 			tags = append(tags, match[1])
 		}
 	}
-	
+
 	// 如果没有提取到分类，添加默认标签
 	if len(tags) == 0 {
 		tags = append(tags, "影视资源")
 	}
-	
+
 	return tags
 }
 

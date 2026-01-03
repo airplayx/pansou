@@ -33,18 +33,18 @@ const (
 	SousouAPI = "https://sousou.pro/api.php"
 
 	// 默认参数
-	DefaultPerSize = 30
+	DefaultPerSize  = 30
 	DefaultMaxPages = 3
 )
 
 // 支持的网盘类型列表
 var supportedDiskTypes = []string{
-	"QUARK",   // 夸克网盘
-	"BDY",     // 百度网盘
-	"ALY",     // 阿里云盘
-	"XUNLEI",  // 迅雷网盘
-	"UC",      // UC网盘
-	"115",     // 115网盘
+	"QUARK",  // 夸克网盘
+	"BDY",    // 百度网盘
+	"ALY",    // 阿里云盘
+	"XUNLEI", // 迅雷网盘
+	"UC",     // UC网盘
+	"115",    // 115网盘
 }
 
 // SousouAsyncPlugin Sousou搜索异步插件
@@ -91,14 +91,14 @@ func (p *SousouAsyncPlugin) doSearch(client *http.Client, keyword string, ext ma
 		go func(dt string) {
 			defer wg.Done()
 			debugLog("开始搜索网盘类型: %s", dt)
-			
+
 			items, err := p.searchByType(client, keyword, dt)
 			if err != nil {
 				debugLog("%s 网盘搜索错误: %v", dt, err)
 				errChan <- fmt.Errorf("%s API error: %w", dt, err)
 				return
 			}
-			
+
 			debugLog("%s 网盘返回 %d 条结果", dt, len(items))
 			resultChan <- items
 		}(diskType)
@@ -476,4 +476,3 @@ type SousouItem struct {
 	Weight      int         `json:"weight"`
 	Status      int         `json:"status"`
 }
-

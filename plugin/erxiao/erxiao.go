@@ -1,15 +1,15 @@
 package erxiao
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
-	"time"
-	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"pansou/model"
@@ -36,12 +36,12 @@ const (
 
 // 性能统计（原子操作）
 var (
-	searchRequests    int64 = 0
-	totalSearchTime   int64 = 0 // 纳秒
+	searchRequests     int64 = 0
+	totalSearchTime    int64 = 0 // 纳秒
 	detailPageRequests int64 = 0
-	totalDetailTime   int64 = 0 // 纳秒
-	cacheHits         int64 = 0
-	cacheMisses       int64 = 0
+	totalDetailTime    int64 = 0 // 纳秒
+	cacheHits          int64 = 0
+	cacheMisses        int64 = 0
 )
 
 // Detail page缓存
@@ -63,20 +63,19 @@ var (
 	detailIDRegex = regexp.MustCompile(`/id/(\d+)`)
 
 	// 常见网盘链接的正则表达式（支持16种类型）
-	quarkLinkRegex     = regexp.MustCompile(`https?://pan\.quark\.cn/s/[0-9a-zA-Z]+`)
-	ucLinkRegex        = regexp.MustCompile(`https?://drive\.uc\.cn/s/[0-9a-zA-Z]+(\?[^"'\s]*)?`)
-	baiduLinkRegex     = regexp.MustCompile(`https?://pan\.baidu\.com/s/[0-9a-zA-Z_\-]+(\?pwd=[0-9a-zA-Z]+)?`)
-	aliyunLinkRegex    = regexp.MustCompile(`https?://(www\.)?(aliyundrive\.com|alipan\.com)/s/[0-9a-zA-Z]+`)
-	xunleiLinkRegex    = regexp.MustCompile(`https?://pan\.xunlei\.com/s/[0-9a-zA-Z_\-]+(\?pwd=[0-9a-zA-Z]+)?`)
-	tianyiLinkRegex    = regexp.MustCompile(`https?://cloud\.189\.cn/t/[0-9a-zA-Z]+`)
-	link115Regex       = regexp.MustCompile(`https?://115\.com/s/[0-9a-zA-Z]+`)
-	mobileLinkRegex    = regexp.MustCompile(`https?://caiyun\.feixin\.10086\.cn/[0-9a-zA-Z]+`)
-	link123Regex       = regexp.MustCompile(`https?://123pan\.com/s/[0-9a-zA-Z]+`)
-	pikpakLinkRegex    = regexp.MustCompile(`https?://mypikpak\.com/s/[0-9a-zA-Z]+`)
-	magnetLinkRegex    = regexp.MustCompile(`magnet:\?xt=urn:btih:[0-9a-fA-F]{40}`)
-	ed2kLinkRegex      = regexp.MustCompile(`ed2k://\|file\|.+\|\d+\|[0-9a-fA-F]{32}\|/`)
+	quarkLinkRegex  = regexp.MustCompile(`https?://pan\.quark\.cn/s/[0-9a-zA-Z]+`)
+	ucLinkRegex     = regexp.MustCompile(`https?://drive\.uc\.cn/s/[0-9a-zA-Z]+(\?[^"'\s]*)?`)
+	baiduLinkRegex  = regexp.MustCompile(`https?://pan\.baidu\.com/s/[0-9a-zA-Z_\-]+(\?pwd=[0-9a-zA-Z]+)?`)
+	aliyunLinkRegex = regexp.MustCompile(`https?://(www\.)?(aliyundrive\.com|alipan\.com)/s/[0-9a-zA-Z]+`)
+	xunleiLinkRegex = regexp.MustCompile(`https?://pan\.xunlei\.com/s/[0-9a-zA-Z_\-]+(\?pwd=[0-9a-zA-Z]+)?`)
+	tianyiLinkRegex = regexp.MustCompile(`https?://cloud\.189\.cn/t/[0-9a-zA-Z]+`)
+	link115Regex    = regexp.MustCompile(`https?://115\.com/s/[0-9a-zA-Z]+`)
+	mobileLinkRegex = regexp.MustCompile(`https?://caiyun\.feixin\.10086\.cn/[0-9a-zA-Z]+`)
+	link123Regex    = regexp.MustCompile(`https?://123pan\.com/s/[0-9a-zA-Z]+`)
+	pikpakLinkRegex = regexp.MustCompile(`https?://mypikpak\.com/s/[0-9a-zA-Z]+`)
+	magnetLinkRegex = regexp.MustCompile(`magnet:\?xt=urn:btih:[0-9a-fA-F]{40}`)
+	ed2kLinkRegex   = regexp.MustCompile(`ed2k://\|file\|.+\|\d+\|[0-9a-fA-F]{32}\|/`)
 )
-
 
 type ErxiaoAsyncPlugin struct {
 	*plugin.BaseAsyncPlugin
@@ -284,7 +283,7 @@ func (p *ErxiaoAsyncPlugin) parseSearchItem(s *goquery.Selection, keyword string
 	result.Title = title
 	result.Content = content
 	result.Tags = tags
-	result.Channel = "" // 插件搜索结果Channel为空
+	result.Channel = ""           // 插件搜索结果Channel为空
 	result.Datetime = time.Time{} // 使用零值
 
 	return result
@@ -427,14 +426,13 @@ func (p *ErxiaoAsyncPlugin) fetchDetailLinksAndImages(client *http.Client, itemI
 // isValidNetworkDriveURL 验证是否为有效的网盘URL
 func (p *ErxiaoAsyncPlugin) isValidNetworkDriveURL(url string) bool {
 	if strings.Contains(url, "javascript:") ||
-	   strings.Contains(url, "#") ||
-	   url == "" ||
-	   (!strings.HasPrefix(url, "http") && !strings.HasPrefix(url, "magnet:") && !strings.HasPrefix(url, "ed2k:")) {
+		strings.Contains(url, "#") ||
+		url == "" ||
+		(!strings.HasPrefix(url, "http") && !strings.HasPrefix(url, "magnet:") && !strings.HasPrefix(url, "ed2k:")) {
 		return false
 	}
 	return true
 }
-
 
 // determineLinkType 根据URL确定链接类型
 func (p *ErxiaoAsyncPlugin) determineLinkType(url string) string {

@@ -248,7 +248,7 @@ func (p *QupanshePlugin) postSearchRequest(client *http.Client, keyword, formhas
 				fmt.Printf("  %s: %s\n", key, value)
 			}
 		}
-		
+
 		// 显示将要发送的cookies
 		if client.Jar != nil {
 			if u, _ := url.Parse(searchURL); u != nil {

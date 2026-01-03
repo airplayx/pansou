@@ -1,18 +1,19 @@
 package soula
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 	"os"
-	"cmp"
 	"pansou/model"
 	"pansou/plugin"
 	"path/filepath"
 	"strconv"
 	"sync"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 type SoulaPlugin struct {
@@ -78,13 +79,31 @@ func (sa *SoulaPlugin) Initialize() error {
 // RegisterWebRoutes 注册Web路由
 func (sa *SoulaPlugin) RegisterWebRoutes(router *gin.RouterGroup) {
 	soula := router.Group("/api")
+
+	// 鉴权中间件
+	soula.Use(func(c *gin.Context) {
+		// 优先从环境变量获取Token
+		validToken := cmp.Or(os.Getenv("SOULA_TOKEN"), "soula-token-2026")
+		token := c.GetHeader("X-Token")
+
+		if token != validToken {
+			c.JSON(401, gin.H{
+				"code":    401,
+				"message": "Unauthorized: Invalid or missing Soula Token",
+			})
+			c.Abort()
+			return
+		}
+		c.Next()
+	})
+
 	soula.GET("/categories", sa.handleCategories)
 	soula.GET("/collected-resources/random", sa.handleResourcesRandom)
 	soula.GET("/collected-resources", sa.handleResources)
 	soula.GET("/resource/:param", sa.handleResource)
 	soula.GET("/collected-resources/hot", sa.handleDailyHotResources)
 
-	fmt.Printf("[SOULA] Web路由已注册: /api/:param\n")
+	fmt.Printf("[SOULA] Web路由已注册并启用鉴权: /api/...\n")
 }
 
 func (sa *SoulaPlugin) handleDailyHotResources(c *gin.Context) {
@@ -118,7 +137,7 @@ func (sa *SoulaPlugin) handleDailyHotResources(c *gin.Context) {
 		items = append(items, gin.H{
 			"id":        res.ID,
 			"unique_id": res.UniqueID,
-			"title":     res.AiTitle,
+			"title":     res.Title,
 			"views":     res.Views,
 			"category":  res.Category,
 		})
@@ -146,7 +165,7 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 	// 2. Parse limits for items per category
 	limitStr := c.DefaultQuery("limit", "24")
 	limit, _ := strconv.Atoi(limitStr)
-limit = cmp.Or(limit, 24)
+	limit = cmp.Or(limit, 24)
 
 	// 3. Count total categories
 	var total int64
@@ -222,16 +241,16 @@ func (sa *SoulaPlugin) handleResourcesRandom(c *gin.Context) {
 	items := make([]gin.H, 0)
 	for _, resource := range resources {
 		tags := make([]string, 0)
-		json.Unmarshal([]byte(resource.AiTags), &tags)
+		json.Unmarshal([]byte(resource.Tags), &tags)
 
 		item := gin.H{
 			"id":               resource.ID,
 			"unique_id":        resource.UniqueID,
 			"channel":          resource.Channel,
-			"ai_title":         resource.AiTitle,
-			"ai_description":   resource.AiDescription,
-			"ai_tags":          tags,
-			"image_urls":       resource.ImageUrl,
+			"title":            resource.Title,
+			"description":      resource.Description,
+			"tags":             tags,
+			"image_url":        resource.ImageUrl,
 			"original_title":   resource.OriginalTitle,
 			"original_content": resource.OriginalContent,
 			"pan_url":          resource.PanURL,
@@ -273,13 +292,13 @@ func (sa *SoulaPlugin) handleResource(c *gin.Context) {
 			"note":     link.Note,
 			"datetime": link.Datetime,
 			"source":   link.Source,
-			"image":   link.Image,
+			"image":    link.Image,
 		})
 	}
 
 	// Parse tags for the main resource
 	tags := make([]string, 0)
-	json.Unmarshal([]byte(resource.AiTags), &tags)
+	json.Unmarshal([]byte(resource.Tags), &tags)
 
 	c.JSON(200, gin.H{
 		"code":    0,
@@ -287,9 +306,9 @@ func (sa *SoulaPlugin) handleResource(c *gin.Context) {
 		"data": gin.H{
 			"id":               resource.ID,
 			"unique_id":        resource.UniqueID,
-			"ai_title":         resource.AiTitle,
-			"ai_description":   resource.AiDescription,
-			"ai_tags":          tags,
+			"title":            resource.Title,
+			"description":      resource.Description,
+			"tags":             tags,
 			"image_url":        resource.ImageUrl,
 			"original_title":   resource.OriginalTitle,
 			"original_content": resource.OriginalContent,
@@ -330,15 +349,15 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	items := make([]gin.H, 0)
 	for _, res := range resources {
 		tags := make([]string, 0)
-		json.Unmarshal([]byte(res.AiTags), &tags)
+		json.Unmarshal([]byte(res.Tags), &tags)
 
 		items = append(items, gin.H{
 			"id":               res.ID,
 			"unique_id":        res.UniqueID,
 			"channel":          res.Channel,
-			"ai_title":         res.AiTitle,
-			"ai_description":   res.AiDescription,
-			"ai_tags":          tags,
+			"title":            res.Title,
+			"description":      res.Description,
+			"tags":             tags,
 			"image_url":        res.ImageUrl,
 			"original_title":   res.OriginalTitle,
 			"original_content": res.OriginalContent,

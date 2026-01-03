@@ -1896,7 +1896,7 @@ func (p *QQPDPlugin) fetchFullCookie(uin, ptsigx, setCookieHeader string) (strin
 
 	// 优先使用resp.Cookies()获取cookies（Go的http.Client自动解析Set-Cookie）
 	cookieDict := make(map[string]string)
-	
+
 	// 首先从resp.Cookies()获取（更可靠，自动处理Set-Cookie）
 	for _, cookie := range resp.Cookies() {
 		if cookie.Value != "" {
@@ -1939,16 +1939,16 @@ func (p *QQPDPlugin) parseSetCookieHeader(setCookie string) (string, string) {
 	if len(parts) == 0 {
 		return "", ""
 	}
-	
+
 	nameValue := strings.TrimSpace(parts[0])
 	idx := strings.Index(nameValue, "=")
 	if idx <= 0 {
 		return "", ""
 	}
-	
+
 	key := strings.TrimSpace(nameValue[:idx])
 	value := strings.TrimSpace(nameValue[idx+1:])
-	
+
 	// 跳过cookie属性（不是真正的cookie名称）
 	skipAttrs := map[string]bool{
 		"Domain": true, "Path": true, "Expires": true, "Max-Age": true,
@@ -1957,7 +1957,7 @@ func (p *QQPDPlugin) parseSetCookieHeader(setCookie string) (string, string) {
 	if skipAttrs[key] {
 		return "", ""
 	}
-	
+
 	return key, value
 }
 
@@ -2006,7 +2006,7 @@ func (p *QQPDPlugin) refreshCookie(cookieStr string) string {
 
 	// 从响应中提取新cookies
 	newCookies := make(map[string]string)
-	
+
 	// 优先使用resp.Cookies()
 	for _, cookie := range resp.Cookies() {
 		if cookie.Value != "" {
@@ -2137,7 +2137,7 @@ func bkn(skey string) int64 {
 func (p *QQPDPlugin) testCookieValid(cookieStr string) bool {
 	// 测试前刷新cookies（更新uuid等动态字段）
 	cookieStr = p.refreshCookie(cookieStr)
-	
+
 	// 解析cookie获取p_skey
 	cookies := parseCookieString(cookieStr)
 	pSkey, ok := cookies["p_skey"]

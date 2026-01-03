@@ -15,22 +15,22 @@ import (
 )
 
 const (
-	PluginName      = "meitizy"
-	DisplayName     = "美体资源"
-	Description     = "美体资源 - 影视资源网盘链接搜索"
-	BaseURL         = "https://video.451024.xyz"
-	SearchPath      = "/api/search"
-	UserAgent       = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-	MaxResults      = 100
-	RequestTimeout  = 30 * time.Second
-	MaxPageSize     = 1000 // API支持的最大size参数
-	
+	PluginName     = "meitizy"
+	DisplayName    = "美体资源"
+	Description    = "美体资源 - 影视资源网盘链接搜索"
+	BaseURL        = "https://video.451024.xyz"
+	SearchPath     = "/api/search"
+	UserAgent      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+	MaxResults     = 100
+	RequestTimeout = 30 * time.Second
+	MaxPageSize    = 1000 // API支持的最大size参数
+
 	// HTTP连接池配置（性能优化）
-	MaxIdleConns        = 100
-	MaxIdleConnsPerHost = 30
-	MaxConnsPerHost     = 50
-	IdleConnTimeout     = 90 * time.Second
-	TLSHandshakeTimeout = 10 * time.Second
+	MaxIdleConns          = 100
+	MaxIdleConnsPerHost   = 30
+	MaxConnsPerHost       = 50
+	IdleConnTimeout       = 90 * time.Second
+	TLSHandshakeTimeout   = 10 * time.Second
 	ExpectContinueTimeout = 1 * time.Second
 )
 
@@ -324,11 +324,11 @@ func (p *MeitizyPlugin) parseTime(timeStr string) time.Time {
 
 	// 尝试多种时间格式
 	timeFormats := []string{
-		time.RFC3339,                    // 2006-01-02T15:04:05Z07:00
-		"2006-01-02T15:04:05.000Z",     // 2025-11-25T22:59:53.000Z
-		"2006-01-02T15:04:05Z",         // 2006-01-02T15:04:05Z
-		"2006-01-02 15:04:05",         // 2006-01-02 15:04:05
-		"2006-01-02",                   // 2006-01-02
+		time.RFC3339,               // 2006-01-02T15:04:05Z07:00
+		"2006-01-02T15:04:05.000Z", // 2025-11-25T22:59:53.000Z
+		"2006-01-02T15:04:05Z",     // 2006-01-02T15:04:05Z
+		"2006-01-02 15:04:05",      // 2006-01-02 15:04:05
+		"2006-01-02",               // 2006-01-02
 	}
 
 	for _, format := range timeFormats {
@@ -378,4 +378,3 @@ func (p *MeitizyPlugin) doRequestWithRetry(req *http.Request, client *http.Clien
 
 	return nil, fmt.Errorf("[%s] 重试 %d 次后仍然失败: %w", p.Name(), maxRetries, lastErr)
 }
-

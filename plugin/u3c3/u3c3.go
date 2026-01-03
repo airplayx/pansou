@@ -165,12 +165,12 @@ func (p *U3c3Plugin) extractSearch2FromHTML(html string) string {
 	lines := strings.Split(html, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		
+
 		// 跳过注释行
 		if strings.HasPrefix(line, "//") {
 			continue
 		}
-		
+
 		// 查找包含nmefafej的行
 		if strings.Contains(line, "nmefafej") && strings.Contains(line, `"`) {
 			// 使用正则提取引号内的值
@@ -182,7 +182,7 @@ func (p *U3c3Plugin) extractSearch2FromHTML(html string) string {
 				}
 				return matches[1]
 			}
-			
+
 			// 备用方案：直接提取引号内容
 			start := strings.Index(line, `"`)
 			if start != -1 {
@@ -311,7 +311,6 @@ func (p *U3c3Plugin) parseSearchResults(html string) ([]model.SearchResult, erro
 				})
 			}
 		})
-
 
 		// 提取文件大小
 		sizeText := strings.TrimSpace(s.Find("td:nth-child(4)").Text())

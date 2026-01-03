@@ -18,22 +18,22 @@ import (
 )
 
 const (
-	PluginName    = "ddys"
-	DisplayName   = "低端影视"
-	Description   = "低端影视 - 影视资源网盘链接搜索"
-	BaseURL       = "https://ddys.pro"
-	SearchPath    = "/?s=%s&post_type=post"
-	UserAgent     = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-	MaxResults    = 50
+	PluginName     = "ddys"
+	DisplayName    = "低端影视"
+	Description    = "低端影视 - 影视资源网盘链接搜索"
+	BaseURL        = "https://ddys.pro"
+	SearchPath     = "/?s=%s&post_type=post"
+	UserAgent      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+	MaxResults     = 50
 	MaxConcurrency = 20
 )
 
 // DdysPlugin 低端影视插件
 type DdysPlugin struct {
 	*plugin.BaseAsyncPlugin
-	debugMode    bool
-	detailCache  sync.Map // 缓存详情页结果
-	cacheTTL     time.Duration
+	debugMode   bool
+	detailCache sync.Map // 缓存详情页结果
+	cacheTTL    time.Duration
 }
 
 // init 注册插件
@@ -99,7 +99,7 @@ func (p *DdysPlugin) searchImpl(client *http.Client, keyword string, ext map[str
 
 	// 第三步：关键词过滤（标准网盘插件需要过滤）
 	filteredResults := plugin.FilterResultsByKeyword(finalResults, keyword)
-	
+
 	if p.debugMode {
 		log.Printf("[DDYS] 关键词过滤后剩余 %d 个结果", len(filteredResults))
 	}
@@ -153,28 +153,28 @@ func (p *DdysPlugin) executeSearch(client *http.Client, keyword string) ([]model
 func (p *DdysPlugin) doRequestWithRetry(req *http.Request, client *http.Client) (*http.Response, error) {
 	maxRetries := 3
 	var lastErr error
-	
+
 	for i := 0; i < maxRetries; i++ {
 		if i > 0 {
 			// 指数退避重试
 			backoff := time.Duration(1<<uint(i-1)) * 200 * time.Millisecond
 			time.Sleep(backoff)
 		}
-		
+
 		// 克隆请求避免并发问题
 		reqClone := req.Clone(req.Context())
-		
+
 		resp, err := client.Do(reqClone)
 		if err == nil && resp.StatusCode == 200 {
 			return resp, nil
 		}
-		
+
 		if resp != nil {
 			resp.Body.Close()
 		}
 		lastErr = err
 	}
-	
+
 	return nil, fmt.Errorf("[%s] 重试 %d 次后仍然失败: %w", p.Name(), maxRetries, lastErr)
 }
 
@@ -334,7 +334,7 @@ func (p *DdysPlugin) fetchDetailLinks(client *http.Client, searchResults []model
 		wg.Add(1)
 		go func(r model.SearchResult) {
 			defer wg.Done()
-			semaphore <- struct{}{} // 获取信号量
+			semaphore <- struct{}{}        // 获取信号量
 			defer func() { <-semaphore }() // 释放信号量
 
 			// 从Content中提取详情页URL
@@ -496,7 +496,7 @@ func (p *DdysPlugin) parseNetworkDiskLinks(htmlContent string) []model.Link {
 		for _, match := range matches {
 			if len(match) >= 3 {
 				url := match[1]
-				
+
 				// 去重
 				if seen[url] {
 					continue
@@ -555,7 +555,7 @@ func (p *DdysPlugin) extractPassword(content string, panURL string) string {
 	if end > len(content) {
 		end = len(content)
 	}
-	
+
 	searchArea := content[start:end]
 
 	for _, pattern := range patterns {
