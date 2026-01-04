@@ -1,7 +1,7 @@
 # 构建阶段
 # 使用 --platform=$BUILDPLATFORM 确保构建器始终在运行 Actions 的机器的原生架构上运行 (通常是 linux/amd64)
 # $BUILDPLATFORM 是 buildx 自动提供的变量
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.24-bookworm AS builder
 
 # 安装构建依赖
 RUN apk add --no-cache git ca-certificates tzdata
@@ -23,9 +23,6 @@ ARG VERSION=dev
 ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
 
-# 这是 buildx 自动传入的目标平台架构参数，例如 amd64, arm64
-ARG TARGETARCH
-
 # 安装 C 编译环境
 RUN apk add --no-cache \
     gcc \
@@ -34,7 +31,7 @@ RUN apk add --no-cache \
 
 # 构建应用
 # Go 语言原生支持交叉编译，这里会根据传入的 TARGETARCH 编译出对应平台的可执行文件
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags="-s -w -extldflags '-static'" -o pansou .
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w -extldflags '-static'" -o pansou .
 
 # 运行阶段
 # 这一阶段会根据 buildx 的 --platform 参数选择正确的基础镜像 (例如 linux/arm64 会拉取 arm64/alpine)
