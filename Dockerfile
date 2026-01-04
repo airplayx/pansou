@@ -26,6 +26,13 @@ ARG VCS_REF=unknown
 # 这是 buildx 自动传入的目标平台架构参数，例如 amd64, arm64
 ARG TARGETARCH
 
+# 安装 C 编译环境
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libc6-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
 # 构建应用
 # Go 语言原生支持交叉编译，这里会根据传入的 TARGETARCH 编译出对应平台的可执行文件
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags="-s -w -extldflags '-static'" -o pansou .
