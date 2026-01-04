@@ -27,11 +27,10 @@ ARG VCS_REF=unknown
 ARG TARGETARCH
 
 # 安装 C 编译环境
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     gcc \
-    libc6-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+    musl-dev \
+    libc-dev
 
 # 构建应用
 # Go 语言原生支持交叉编译，这里会根据传入的 TARGETARCH 编译出对应平台的可执行文件
