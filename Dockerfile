@@ -3,8 +3,6 @@
 # $BUILDPLATFORM 是 buildx 自动提供的变量
 FROM --platform=$BUILDPLATFORM golang:1.24-bookworm AS builder
 
-# 安装构建依赖
-RUN apk add --no-cache git ca-certificates tzdata
 
 # 设置工作目录
 WORKDIR /app
@@ -24,10 +22,11 @@ ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
 
 # 安装 C 编译环境
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     gcc \
-    musl-dev \
-    libc-dev
+    libc6-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 # 构建应用
 # Go 语言原生支持交叉编译，这里会根据传入的 TARGETARCH 编译出对应平台的可执行文件
