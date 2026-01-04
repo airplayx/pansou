@@ -28,7 +28,7 @@ ARG TARGETARCH
 
 # 构建应用
 # Go 语言原生支持交叉编译，这里会根据传入的 TARGETARCH 编译出对应平台的可执行文件
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags="-s -w -extldflags '-static'" -o pansou .
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags="-s -w -extldflags '-static'" -o pansou .
 
 # 运行阶段
 # 这一阶段会根据 buildx 的 --platform 参数选择正确的基础镜像 (例如 linux/arm64 会拉取 arm64/alpine)
@@ -73,13 +73,13 @@ ARG VCS_REF=unknown
 
 # 添加镜像标签
 LABEL org.opencontainers.image.title="PanSou" \
-      org.opencontainers.image.description="高性能网盘资源搜索API服务" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.url="https://github.com/fish2018/pansou" \
-      org.opencontainers.image.source="https://github.com/fish2018/pansou" \
-      maintainer="fish2018"
+    org.opencontainers.image.description="高性能网盘资源搜索API服务" \
+    org.opencontainers.image.version="${VERSION}" \
+    org.opencontainers.image.created="${BUILD_DATE}" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.url="https://github.com/fish2018/pansou" \
+    org.opencontainers.image.source="https://github.com/fish2018/pansou" \
+    maintainer="fish2018"
 
 # 运行应用
 CMD ["/app/pansou"]
