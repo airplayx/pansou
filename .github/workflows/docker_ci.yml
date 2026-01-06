@@ -15,6 +15,8 @@ on:
 env:
   APP_NAME: pansou
   DOCKERHUB_REPO: airplayx/pansou
+  APP_VERSION: ""
+  BUILD_DATE: ""
 
 jobs:
   build-and-push:
@@ -44,7 +46,9 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Generate App Version
-        run: echo APP_VERSION=`git describe --tags --always` >> $GITHUB_ENV
+        run: |
+          echo "APP_VERSION=$(git describe --tags --always)" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
 
       - name: Build and push Docker image
         id: docker_build
@@ -54,7 +58,8 @@ jobs:
           # see https://github.com/docker-library/bashbrew/blob/v0.1.1/architecture/oci-platform.go
           platforms: linux/amd64,linux/arm64
           build-args: |
-            APP_NAME=${{ env.APP_NAME }}
-            APP_VERSION=${{ env.APP_VERSION }}
+            VERSION=${{ env.APP_VERSION }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
+            VCS_REF=${{ github.sha }}
           tags: |
             ${{ env.DOCKERHUB_REPO }}:latest
