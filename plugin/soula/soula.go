@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"sync"
 
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -25,9 +27,91 @@ type SoulaPlugin struct {
 }
 
 func (sa *SoulaPlugin) Search(keyword string, ext map[string]interface{}) ([]model.SearchResult, error) {
-	//TODO implement me
+	if keyword == "" || sa.DB == nil {
+		return []model.SearchResult{}, nil
+	}
 
-	return []model.SearchResult{}, nil
+	var resources []CollectedResource
+	// 简单的模糊搜索
+	searchTerm := "%" + keyword + "%"
+	err := sa.DB.Where("title LIKE ? OR description LIKE ? OR original_content LIKE ?",
+		searchTerm, searchTerm, searchTerm).
+		Order("views desc").
+		Limit(50).
+		Find(&resources).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]model.SearchResult, 0, len(resources))
+	for _, res := range resources {
+		results = append(results, model.SearchResult{
+			UniqueID: res.UniqueID,
+			Channel:  res.Channel,
+			Title:    res.Title,
+			Content:  res.Description,
+			Datetime: res.CreatedAt,
+			Category: res.Category,
+		})
+	}
+
+	return results, nil
+}
+
+// RecordSearch 记录搜索关键词热度，并根据搜索结果自动归类
+func (sa *SoulaPlugin) RecordSearch(keyword string, results []model.SearchResult) {
+	if keyword == "" || len(results) == 0 || sa.DB == nil {
+		return
+	}
+
+	// 1. 统计结果中的分类分布
+	categoryCounts := make(map[string]int)
+	for _, res := range results {
+		if res.Category != "" {
+			categoryCounts[res.Category]++
+		}
+	}
+
+	// 2. 匹配规则：选择结果中出现次数最多的分类作为该搜索词的分类
+	targetAlias := "all"
+	if len(categoryCounts) > 0 {
+		maxCount := 0
+		for alias, count := range categoryCounts {
+			if count > maxCount {
+				maxCount = count
+				targetAlias = alias
+			}
+		}
+	}
+
+	// 3. 查找目标分类
+	var category Category
+	if err := sa.DB.Where("alias = ?", targetAlias).First(&category).Error; err != nil {
+		// 如果匹配的分类不存在，则回退到 "全部"
+		if err := sa.DB.Where("alias = ?", "all").First(&category).Error; err != nil {
+			return
+		}
+	}
+
+	// 4. 更新或创建热搜项
+	var item HotSearchItem
+	err := sa.DB.Where("category_id = ? AND term = ?", category.ID, keyword).First(&item).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 创建新记录
+			newItem := HotSearchItem{
+				CategoryID: category.ID,
+				Term:       keyword,
+				Score:      1,
+			}
+			sa.DB.Create(&newItem)
+		}
+		return
+	}
+
+	// 关键词已存在，得分加 1
+	sa.DB.Model(&item).Update("score", gorm.Expr("score + ?", 1))
 }
 
 // 存储目录
@@ -73,6 +157,47 @@ func (sa *SoulaPlugin) Initialize() error {
 
 	sa.DB = db
 	sa.initialized = true
+
+	// 初始化分类数据
+	if err := sa.seedCategories(); err != nil {
+		fmt.Printf("警告: 初始化分类数据失败: %v\n", err)
+	}
+
+	return nil
+}
+
+func (sa *SoulaPlugin) seedCategories() error {
+	categories := []struct {
+		Name  string
+		Alias string
+		Icon  string
+	}{
+		{"全部资源", "all", "all"},
+		{"电影", "movie", "movie"},
+		{"电视剧", "series", "series"},
+		{"动漫", "anime", "anime"},
+		{"综艺", "play", "play"},
+		{"电子书", "ebook", "ebook"},
+		{"游戏", "game", "game"},
+		{"软件", "software", "software"},
+		{"教程", "course", "course"},
+		{"文档", "document", "document"},
+		{"音乐", "music", "music"},
+		{"源码", "code", "code"},
+		{"福利", "welfare", "welfare"},
+		{"其他", "other", "other"},
+	}
+
+	for _, c := range categories {
+		err := sa.DB.Where(Category{Alias: c.Alias}).FirstOrCreate(&Category{
+			Name:  c.Name,
+			Alias: c.Alias,
+			Icon:  c.Icon,
+		}).Error
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -158,9 +283,9 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 	page, _ := strconv.Atoi(pageStr)
 	page = cmp.Or(page, 1)
 
-	pageSizeStr := c.DefaultQuery("pageSize", "10")
+	pageSizeStr := c.DefaultQuery("pageSize", "100")
 	pageSize, _ := strconv.Atoi(pageSizeStr)
-	pageSize = cmp.Or(pageSize, 10)
+	pageSize = cmp.Or(pageSize, 100)
 
 	// 2. Parse limits for items per category
 	limitStr := c.DefaultQuery("limit", "24")
@@ -185,11 +310,23 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 		return
 	}
 
+	// 6. Get today's start time for counting updates
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
 	var catList []gin.H
 	for _, cat := range categories {
 		var items []HotSearchItem
 		// Fetch limited items for each category
 		sa.DB.Where("category_id = ?", cat.ID).Order("score desc").Limit(limit).Find(&items)
+
+		// Fetch today's update count
+		var todayCount int64
+		if cat.Alias == "all" {
+			sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayCount)
+		} else {
+			sa.DB.Model(&CollectedResource{}).Where("category = ? AND created_at >= ?", cat.Alias, todayStart).Count(&todayCount)
+		}
 
 		itemsJson := make([]gin.H, 0)
 		for _, item := range items {
@@ -199,10 +336,12 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 			})
 		}
 		catList = append(catList, gin.H{
-			"id":    cat.ID,
-			"name":  cat.Name,
-			"icon":  cat.Icon,
-			"items": itemsJson,
+			"id":          cat.ID,
+			"name":        cat.Name,
+			"alias":       cat.Alias,
+			"icon":        cat.Icon,
+			"items":       itemsJson,
+			"today_count": todayCount,
 		})
 	}
 
@@ -251,13 +390,11 @@ func (sa *SoulaPlugin) handleResourcesRandom(c *gin.Context) {
 			"description":      resource.Description,
 			"tags":             tags,
 			"image_url":        resource.ImageUrl,
-			"original_title":   resource.OriginalTitle,
 			"original_content": resource.OriginalContent,
-			"pan_url":          resource.PanURL,
-			"pan_password":     resource.PanPassword,
+			"quality":          resource.Quality,
+			"year":             resource.Year,
 			"views":            resource.Views,
 			"status":           resource.Status,
-			"status_text":      resource.StatusText,
 			"category":         resource.Category,
 			"created_at":       resource.CreatedAt.Format("2006-01-02 15:04:05"),
 		}
@@ -286,13 +423,11 @@ func (sa *SoulaPlugin) handleResource(c *gin.Context) {
 
 	mergedByType := make(map[string][]gin.H)
 	for _, link := range resource.Links {
-		mergedByType[link.Type] = append(mergedByType[link.Type], gin.H{
+		mergedByType[link.CloudType] = append(mergedByType[link.CloudType], gin.H{
 			"url":      link.URL,
 			"password": link.Password,
 			"note":     link.Note,
-			"datetime": link.Datetime,
 			"source":   link.Source,
-			"image":    link.Image,
 		})
 	}
 
@@ -310,10 +445,9 @@ func (sa *SoulaPlugin) handleResource(c *gin.Context) {
 			"description":      resource.Description,
 			"tags":             tags,
 			"image_url":        resource.ImageUrl,
-			"original_title":   resource.OriginalTitle,
 			"original_content": resource.OriginalContent,
-			"pan_url":          resource.PanURL,
-			"pan_password":     resource.PanPassword,
+			"quality":          resource.Quality,
+			"year":             resource.Year,
 			"views":            resource.Views,
 			"category":         resource.Category,
 			"created_at":       resource.CreatedAt.Format("2006-01-02 15:04:05"),
@@ -327,10 +461,17 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "10"))
 	category := c.Query("category")
+	keyword := c.Query("keyword")
 
 	query := sa.DB.Model(&CollectedResource{})
-	if category != "" {
+	if category != "" && category != "all" {
 		query = query.Where("category = ?", category)
+	}
+
+	if keyword != "" {
+		searchTerm := "%" + keyword + "%"
+		query = query.Where("(title LIKE ? OR description LIKE ? OR original_content LIKE ?)",
+			searchTerm, searchTerm, searchTerm)
 	}
 
 	sort := c.DefaultQuery("sort", "latest")
@@ -341,6 +482,12 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 
 	var total int64
 	query.Count(&total)
+
+	// Calculate today's total updates
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	var todayTotal int64
+	sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayTotal)
 
 	var resources []CollectedResource
 	offset := (page - 1) * perPage
@@ -359,13 +506,11 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 			"description":      res.Description,
 			"tags":             tags,
 			"image_url":        res.ImageUrl,
-			"original_title":   res.OriginalTitle,
 			"original_content": res.OriginalContent,
-			"pan_url":          res.PanURL,
-			"pan_password":     res.PanPassword,
+			"quality":          res.Quality,
+			"year":             res.Year,
 			"views":            res.Views,
 			"status":           res.Status,
-			"status_text":      res.StatusText,
 			"category":         res.Category,
 			"created_at":       res.CreatedAt.Format("2006-01-02 15:04:05"),
 		})
@@ -382,6 +527,7 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 		"data": gin.H{
 			"items":        items,
 			"total":        total,
+			"today_total":  todayTotal,
 			"current_page": page,
 			"last_page":    lastPage,
 			"per_page":     perPage,

@@ -368,7 +368,7 @@ func (s *SearchService) Search(keyword string, channels []string, concurrency in
 		plugins = nil
 	} else if sourceType == "all" || sourceType == "plugin" {
 		// 检查是否为空列表或只包含空字符串
-		if plugins == nil || len(plugins) == 0 {
+		if len(plugins) == 0 {
 			plugins = nil
 		} else {
 			// 检查是否有非空元素
@@ -505,6 +505,17 @@ func (s *SearchService) Search(keyword string, channels []string, concurrency in
 		Total:        total,
 		Results:      filteredForResults, // 使用进一步过滤的结果
 		MergedByType: mergedLinks,
+	}
+
+	// 记录搜索热词（如果有结果）
+	if response.Total > 0 && keyword != "" {
+		go func() {
+			for _, p := range s.pluginManager.GetPlugins() {
+				if recorder, ok := p.(plugin.SearchRecorder); ok {
+					recorder.RecordSearch(keyword, allResults)
+				}
+			}
+		}()
 	}
 
 	// 根据resultType过滤返回结果
@@ -1326,7 +1337,7 @@ func (s *SearchService) searchPlugins(keyword string, plugins []string, forceRef
 		allPlugins := s.pluginManager.GetPlugins()
 
 		// 确保plugins不为nil并且有非空元素
-		hasPlugins := plugins != nil && len(plugins) > 0
+		hasPlugins := len(plugins) > 0
 		hasNonEmptyPlugin := false
 
 		if hasPlugins {

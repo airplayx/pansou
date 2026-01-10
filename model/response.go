@@ -22,6 +22,7 @@ type SearchResult struct {
 	Links     []Link    `json:"links" sonic:"links"`
 	Tags      []string  `json:"tags,omitempty" sonic:"tags,omitempty"`
 	Images    []string  `json:"images,omitempty" sonic:"images,omitempty"` // TG消息中的图片链接
+	Category  string    `json:"category,omitempty" sonic:"category,omitempty"`
 }
 
 // MergedLink 合并后的网盘链接

@@ -8,9 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"pansou/config"
 	"pansou/model"
+
+	"github.com/gin-gonic/gin"
 )
 
 // ============================================================
@@ -60,6 +61,16 @@ type InitializablePlugin interface {
 	// Initialize 执行插件初始化（创建目录、加载数据等）
 	// 只会被调用一次，应该是幂等的
 	Initialize() error
+}
+
+// SearchRecorder 支持记录搜索关键词的插件接口
+type SearchRecorder interface {
+	AsyncSearchPlugin // 继承搜索插件接口
+
+	// RecordSearch 记录搜索关键词
+	// keyword: 搜索关键词
+	// results: 搜索获得的结果列表
+	RecordSearch(keyword string, results []model.SearchResult)
 }
 
 // ============================================================
@@ -1109,9 +1120,9 @@ func (p *BaseAsyncPlugin) updateMainCacheWithFinal(cacheKey string, results []mo
 
 	// 🔥 增强防重复更新机制 - 使用数据哈希确保真正的去重
 	// 生成结果数据的简单哈希标识
-	dataHash := fmt.Sprintf("%d_%d", len(results), results[0].UniqueID)
+	dataHash := fmt.Sprintf("%d_%s", len(results), results[0].UniqueID)
 	if len(results) > 1 {
-		dataHash += fmt.Sprintf("_%d", results[len(results)-1].UniqueID)
+		dataHash += fmt.Sprintf("_%s", results[len(results)-1].UniqueID)
 	}
 	updateKey := fmt.Sprintf("final_%s_%s_%s_%t", p.name, cacheKey, dataHash, isFinal)
 
