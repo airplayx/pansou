@@ -1,54 +1,70 @@
 package soula
 
-import "gorm.io/gorm"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 // Category 资源分类
 type Category struct {
-	Name  string          `json:"name" gorm:"uniqueIndex"`
-	Alias string          `json:"alias"`
-	Icon  string          `json:"icon"`
+	ID    uint            `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Name  string          `gorm:"column:name;type:varchar(64);uniqueIndex;not null" json:"name"`
+	Alias string          `gorm:"column:alias;type:varchar(64);index" json:"alias"`
+	Icon  string          `gorm:"column:icon;type:varchar(128)" json:"icon"`
 	Items []HotSearchItem `json:"items" gorm:"foreignKey:CategoryID"`
 
-	gorm.Model
+	CreatedAt time.Time      `gorm:"column:created_at;type:datetime" json:"created_at"`
+	UpdatedAt time.Time      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"deleted_at"`
 }
 
 // HotSearchItem 热搜项
 type HotSearchItem struct {
-	CategoryID uint   `json:"category_id"`
-	Term       string `json:"term"`
-	Score      int    `json:"score"`
+	ID         uint   `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	CategoryID uint   `gorm:"column:category_id;not null;index" json:"category_id"`
+	Term       string `gorm:"column:term;type:varchar(128);not null;index" json:"term"`
+	Score      int    `gorm:"column:score;type:int(11);default:0" json:"score"`
 
-	gorm.Model
+	CreatedAt time.Time      `gorm:"column:created_at;type:datetime" json:"created_at"`
+	UpdatedAt time.Time      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"deleted_at"`
 }
 
 // CollectedResource 采集到的网盘资源（主表）
 type CollectedResource struct {
-	UniqueID        string         `json:"unique_id" gorm:"uniqueIndex"` // e.g., tg_channelid_msgid
-	Channel         string         `json:"channel" gorm:"index"`         // 来源频道ID/名称
-	Title           string         `json:"title" gorm:"index"`           // 提取出的标题
-	Description     string         `json:"description"`                  // 简洁介绍
-	OriginalContent string         `json:"original_content"`             // 原始消息全文
-	Tags            string         `json:"tags" gorm:"type:text"`        // 标签 (JSON array string)
-	ImageUrl        string         `json:"image_url"`                    // 封面图
-	Category        string         `json:"category" gorm:"index"`        // 资源分类 (e.g., Movie, App)
-	Quality         string         `json:"quality" gorm:"index"`         // 画质 (4K, 1080P)
-	Year            string         `json:"year"`                         // 年份
-	Views           int            `json:"views" gorm:"default:0"`
-	Status          int            `json:"status" gorm:"default:1"` // 1:可用, 0:失效
+	ID              uint           `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	UniqueID        string         `gorm:"column:unique_id;type:varchar(128);uniqueIndex;not null" json:"unique_id"`
+	Channel         string         `gorm:"column:channel;type:varchar(128);index" json:"channel"`
+	Title           string         `gorm:"column:title;type:varchar(255);not null" json:"title"`
+	Description     string         `gorm:"column:description;type:text" json:"description"`
+	OriginalContent string         `gorm:"column:original_content;type:longtext" json:"original_content"`
+	Tags            string         `gorm:"column:tags;type:text" json:"tags"`
+	ImageUrl        string         `gorm:"column:image_url;type:varchar(512)" json:"image_url"`
+	Category        string         `gorm:"column:category;type:varchar(64);index" json:"category"`
+	Quality         string         `gorm:"column:quality;type:varchar(32);index" json:"quality"`
+	Year            string         `gorm:"column:year;type:varchar(16);index" json:"year"`
+	Views           int            `gorm:"column:views;type:int(11);default:0" json:"views"`
+	Status          int            `gorm:"column:status;type:tinyint(4);default:1" json:"status"`
 	Links           []ResourceLink `json:"links" gorm:"foreignKey:ResourceID"`
 
-	gorm.Model
+	CreatedAt time.Time      `gorm:"column:created_at;type:datetime" json:"created_at"`
+	UpdatedAt time.Time      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"deleted_at"`
 }
 
 // ResourceLink 具体网盘链接（从表）
 type ResourceLink struct {
-	ResourceID uint   `json:"resource_id" gorm:"index"`
-	CloudType  string `json:"cloud_type" gorm:"index"` // alipan, quark, baidu, uc, xunlei, 115, tianyi, pikpak
-	URL        string `json:"url" gorm:"index"`
-	Password   string `json:"password"`
-	Note       string `json:"note"`   // 链接备注
-	Source     string `json:"source"` // 来源频道
-	Status     int    `json:"status" gorm:"default:1"`
+	ID         uint   `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	ResourceID uint   `gorm:"column:resource_id;not null;index" json:"resource_id"`
+	CloudType  string `gorm:"column:cloud_type;type:varchar(32);index" json:"cloud_type"`
+	URL        string `gorm:"column:url;type:varchar(1024);not null" json:"url"`
+	Password   string `gorm:"column:password;type:varchar(64);default:''" json:"password"`
+	Note       string `gorm:"column:note;type:varchar(255)" json:"note"`
+	Source     string `gorm:"column:source;type:varchar(128)" json:"source"`
+	Status     int    `gorm:"column:status;type:tinyint(4);default:1" json:"status"`
 
-	gorm.Model
+	CreatedAt time.Time      `gorm:"column:created_at;type:datetime" json:"created_at"`
+	UpdatedAt time.Time      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"deleted_at"`
 }

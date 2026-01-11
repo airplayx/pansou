@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
@@ -143,15 +143,45 @@ func (sa *SoulaPlugin) Initialize() error {
 		return fmt.Errorf("创建存储目录失败: %v", err)
 	}
 
-	// 初始化数据库
-	dbPath := filepath.Join(StorageDir, "soula.db")
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	// 初始化数据库 (MySQL)
+	dbUser := os.Getenv("DB_USER")
+	if dbUser == "" {
+		dbUser = "root"
+	}
+	dbPass := os.Getenv("DB_PASS")
+	if dbPass == "" {
+		dbPass = "root"
+	}
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost == "" {
+		dbHost = "127.0.0.1"
+	}
+	dbPort := os.Getenv("DB_PORT")
+	if dbPort == "" {
+		dbPort = "3306"
+	}
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		dbName = "soula"
+	}
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		dbUser, dbPass, dbHost, dbPort, dbName)
+
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
-		return fmt.Errorf("连接数据库失败: %v", err)
+		return fmt.Errorf("连接数据库(MySQL)失败: %v", err)
 	}
 
 	// 自动迁移
-	if err := db.AutoMigrate(&Category{}, &HotSearchItem{}, &CollectedResource{}, &ResourceLink{}); err != nil {
+	if err := db.Set("gorm:table_options",
+		"ENGINE=InnoDB AUTO_INCREMENT=10000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci").
+		AutoMigrate(
+			&Category{},
+			&HotSearchItem{},
+			&CollectedResource{},
+			&ResourceLink{},
+		); err != nil {
 		return fmt.Errorf("数据库迁移失败: %v", err)
 	}
 
@@ -365,8 +395,8 @@ func (sa *SoulaPlugin) handleResourcesRandom(c *gin.Context) {
 	}
 
 	var resources []CollectedResource
-	// SQLite specific random order
-	if err := sa.DB.Order("RANDOM()").Limit(pageSize).Find(&resources).Error; err != nil {
+	// MySQL specific random order
+	if err := sa.DB.Order("RAND()").Limit(pageSize).Find(&resources).Error; err != nil {
 		c.JSON(200, gin.H{
 			"code":    0,
 			"message": "success",
