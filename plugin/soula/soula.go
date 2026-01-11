@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
-	"gorm.io/gorm/logger"
 	"log"
 	"os"
 	"pansou/config"
@@ -13,6 +12,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+
+	"gorm.io/gorm/logger"
 
 	"time"
 
@@ -54,7 +55,7 @@ func (sa *SoulaPlugin) Search(keyword string, ext map[string]interface{}) ([]mod
 			Channel:  res.Channel,
 			Title:    res.Title,
 			Content:  res.Description,
-			Datetime: res.CreatedAt,
+			Datetime: time.Time(res.CreatedAt),
 			Category: res.Category,
 		})
 	}
@@ -449,7 +450,7 @@ func (sa *SoulaPlugin) handleResourcesRandom(c *gin.Context) {
 			"views":            resource.Views,
 			"status":           resource.Status,
 			"category":         resource.Category,
-			"created_at":       resource.CreatedAt.Format("2006-01-02 15:04:05"),
+			"created_at":       resource.CreatedAt,
 		}
 		items = append(items, item)
 	}
@@ -503,7 +504,7 @@ func (sa *SoulaPlugin) handleResource(c *gin.Context) {
 			"year":             resource.Year,
 			"views":            resource.Views,
 			"category":         resource.Category,
-			"created_at":       resource.CreatedAt.Format("2006-01-02 15:04:05"),
+			"created_at":       resource.CreatedAt,
 			"total_links":      len(resource.Links),
 			"merged_by_type":   mergedByType,
 		},
@@ -565,7 +566,7 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 			"views":            res.Views,
 			"status":           res.Status,
 			"category":         res.Category,
-			"created_at":       res.CreatedAt.Format("2006-01-02 15:04:05"),
+			"created_at":       res.CreatedAt,
 		})
 	}
 

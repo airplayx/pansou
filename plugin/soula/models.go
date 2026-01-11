@@ -1,8 +1,6 @@
 package soula
 
 import (
-	"time"
-
 	"gorm.io/gorm"
 )
 
@@ -14,9 +12,9 @@ type Category struct {
 	Icon  string          `gorm:"column:icon;type:varchar(128)" json:"icon"`
 	Items []HotSearchItem `json:"items" gorm:"foreignKey:CategoryID"`
 
-	CreatedAt time.Time      `gorm:"column:created_at;type:datetime" json:"created_at"`
-	UpdatedAt time.Time      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"deleted_at"`
+	CreatedAt Timestamp      `gorm:"column:created_at;type:datetime" json:"created_at"`
+	UpdatedAt Timestamp      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"-"`
 }
 
 // HotSearchItem 热搜项
@@ -26,9 +24,9 @@ type HotSearchItem struct {
 	Term       string `gorm:"column:term;type:varchar(128);not null;index" json:"term"`
 	Score      int    `gorm:"column:score;type:int(11);default:0" json:"score"`
 
-	CreatedAt time.Time      `gorm:"column:created_at;type:datetime" json:"created_at"`
-	UpdatedAt time.Time      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"deleted_at"`
+	CreatedAt Timestamp      `gorm:"column:created_at;type:datetime" json:"created_at"`
+	UpdatedAt Timestamp      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"-"`
 }
 
 // CollectedResource 采集到的网盘资源（主表）
@@ -48,9 +46,9 @@ type CollectedResource struct {
 	Status          int            `gorm:"column:status;type:tinyint(4);default:1" json:"status"`
 	Links           []ResourceLink `json:"links" gorm:"foreignKey:ResourceID"`
 
-	CreatedAt time.Time      `gorm:"column:created_at;type:datetime" json:"created_at"`
-	UpdatedAt time.Time      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"deleted_at"`
+	CreatedAt Timestamp      `gorm:"column:created_at;type:datetime" json:"created_at"`
+	UpdatedAt Timestamp      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"-"`
 }
 
 // ResourceLink 具体网盘链接（从表）
@@ -64,7 +62,7 @@ type ResourceLink struct {
 	Source     string `gorm:"column:source;type:varchar(128)" json:"source"`
 	Status     int    `gorm:"column:status;type:tinyint(4);default:1" json:"status"`
 
-	CreatedAt time.Time      `gorm:"column:created_at;type:datetime" json:"created_at"`
-	UpdatedAt time.Time      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"deleted_at"`
+	CreatedAt Timestamp      `gorm:"column:created_at;type:datetime" json:"created_at"`
+	UpdatedAt Timestamp      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"-"`
 }
