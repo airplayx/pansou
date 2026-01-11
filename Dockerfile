@@ -11,5 +11,5 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
 
 FROM alpine:3.19
 RUN mkdir -p /app/cache
-COPY --from=builder /app/pansou .
+COPY --from=builder /app/pansou /app/pansou
 CMD ["/app/pansou"]
