@@ -4,7 +4,10 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"gorm.io/gorm/logger"
+	"log"
 	"os"
+	"pansou/config"
 	"pansou/model"
 	"pansou/plugin"
 	"path/filepath"
@@ -168,7 +171,27 @@ func (sa *SoulaPlugin) Initialize() error {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&allowNativePasswords=true",
 		dbUser, dbPass, dbHost, dbPort, dbName)
 
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	gormConfig := &gorm.Config{
+		SkipDefaultTransaction: true,
+		Logger:                 logger.Discard,
+		NowFunc: func() time.Time {
+			return time.Now().In(time.Local)
+		},
+		//DisableForeignKeyConstraintWhenMigrating: true,
+	}
+	if config.AppConfig.RunMode == gin.DebugMode {
+		gormConfig.Logger = logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags),
+			logger.Config{
+				SlowThreshold:             time.Second, // 慢 SQL 阈值
+				LogLevel:                  logger.Info, // 关键：日志级别
+				IgnoreRecordNotFoundError: true,
+				Colorful:                  true,
+			},
+		)
+	}
+
+	db, err := gorm.Open(mysql.Open(dsn), gormConfig)
 	if err != nil {
 		return fmt.Errorf("连接数据库(MySQL)失败: %v", err)
 	}
