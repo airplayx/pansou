@@ -56,7 +56,8 @@ jobs:
         with:
           push: ${{ github.event_name != 'pull_request' }}
           # see https://github.com/docker-library/bashbrew/blob/v0.1.1/architecture/oci-platform.go
-          platforms: linux/amd64,linux/arm64
+          platforms: |
+            linux/amd64
           build-args: |
             VERSION=${{ env.APP_VERSION }}
             BUILD_DATE=${{ env.BUILD_DATE }}
