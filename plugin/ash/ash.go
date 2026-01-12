@@ -206,7 +206,7 @@ func (p *AshPlugin) extractResultsFromBytes(data []byte) ([]model.SearchResult, 
 		// 获取标签
 		var tags []string
 		if item.SourceCategoryID > 0 && item.SourceCategoryID <= 6 {
-			categoryNames := [...]string{"短剧", "电影", "电视剧", "动漫", "综艺", "充电视频"}
+			categoryNames := [...]string{"短剧", "电影", "剧集", "动漫", "综艺", "充电视频"}
 			tags = []string{categoryNames[item.SourceCategoryID-1]}
 		}
 

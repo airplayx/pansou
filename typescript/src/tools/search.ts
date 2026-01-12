@@ -25,7 +25,7 @@ export type SearchToolArgs = z.infer<typeof SearchToolArgsSchema>;
  */
 export const searchTool: Tool = {
   name: 'search_netdisk',
-  description: '搜索网盘资源，支持多种网盘类型和搜索来源。可以搜索电影、电视剧、软件、文档等各类资源。',
+  description: '搜索网盘资源，支持多种网盘类型和搜索来源。可以搜索电影、剧集、软件、文档等各类资源。',
   inputSchema: {
     type: 'object',
     properties: {
@@ -45,7 +45,7 @@ export const searchTool: Tool = {
       },
       cloud_types: {
         type: 'array',
-        items: { 
+        items: {
           type: 'string',
           enum: [...SUPPORTED_CLOUD_TYPES]
         },
@@ -88,25 +88,25 @@ export async function executeSearchTool(args: unknown, httpClient: HttpClient): 
   try {
     // 参数验证
     const validatedArgs = SearchToolArgsSchema.parse(args);
-    
+
     // 验证网盘类型
     let cloudTypes: string[] | undefined;
     if (validatedArgs.cloud_types) {
       cloudTypes = validateCloudTypes(validatedArgs.cloud_types);
     }
-    
+
     // 验证数据来源类型
     const sourceType = validateSourceType(validatedArgs.source_type);
-    
+
     // 验证结果类型
     const resultType = validateResultType(validatedArgs.result_type);
-    
+
     // 检查后端服务状态
     const isHealthy = await httpClient.checkHealth();
     if (!isHealthy) {
       throw new Error('后端服务未运行，请先启动后端服务。');
     }
-    
+
     // 构建搜索请求
     const searchRequest: SearchRequest = {
       kw: validatedArgs.keyword,
@@ -119,19 +119,19 @@ export async function executeSearchTool(args: unknown, httpClient: HttpClient): 
       conc: validatedArgs.concurrency,
       ext: validatedArgs.ext_params
     };
-    
+
     // 执行搜索
     const result = await httpClient.search(searchRequest);
-    
+
     // 格式化返回结果
     return formatSearchResult(result, validatedArgs.keyword, resultType);
-    
+
   } catch (error) {
     if (error instanceof z.ZodError) {
       const errorMessages = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
       throw new Error(`参数验证失败: ${errorMessages}`);
     }
-    
+
     if (error instanceof Error) {
       console.error('搜索过程中发生错误:', {
         message: error.message,
@@ -142,7 +142,7 @@ export async function executeSearchTool(args: unknown, httpClient: HttpClient): 
       });
       throw error;
     }
-    
+
     throw new Error(`搜索失败: ${String(error)}`);
   }
 }
@@ -152,10 +152,10 @@ export async function executeSearchTool(args: unknown, httpClient: HttpClient): 
  */
 function formatSearchResult(result: any, keyword: string, resultType: string): string {
   const { total, results, merged_by_type } = result;
-  
+
   let output = `搜索关键词: "${keyword}"\n`;
   output += `找到 ${total} 个结果\n\n`;
-  
+
   if (resultType === 'merge' && merged_by_type) {
     // 按网盘类型分组显示
     output += formatMergedResults(merged_by_type);
@@ -173,7 +173,7 @@ function formatSearchResult(result: any, keyword: string, resultType: string): s
       output += formatDetailedResults(results.slice(0, 10)); // 限制显示前10个详细结果
     }
   }
-  
+
   return output;
 }
 
@@ -182,7 +182,7 @@ function formatSearchResult(result: any, keyword: string, resultType: string): s
  */
 function formatMergedResults(mergedByType: Record<string, any[]>): string {
   let output = '';
-  
+
   const typeNames: Record<string, string> = {
     'baidu': '百度网盘',
     'aliyun': '阿里云盘',
@@ -198,12 +198,12 @@ function formatMergedResults(mergedByType: Record<string, any[]>): string {
     'ed2k': '电驴链接',
     'others': '其他'
   };
-  
+
   for (const [type, links] of Object.entries(mergedByType)) {
     if (links && links.length > 0) {
       const typeName = typeNames[type] || `${type}`;
       output += `### ${typeName} (${links.length}个)\n`;
-      
+
       links.slice(0, 5).forEach((link: any, index: number) => {
         output += `${index + 1}. **${link.note || '未知标题'}**\n`;
         output += `   链接: ${link.url}\n`;
@@ -215,13 +215,13 @@ function formatMergedResults(mergedByType: Record<string, any[]>): string {
         }
         output += `   时间: ${new Date(link.datetime).toLocaleString('zh-CN')}\n\n`;
       });
-      
+
       if (links.length > 5) {
         output += `   ... 还有 ${links.length - 5} 个结果\n\n`;
       }
     }
   }
-  
+
   return output;
 }
 
@@ -230,21 +230,21 @@ function formatMergedResults(mergedByType: Record<string, any[]>): string {
  */
 function formatDetailedResults(results: any[]): string {
   let output = '';
-  
+
   results.forEach((result: any, index: number) => {
     output += `### ${index + 1}. ${result.title || '未知标题'}\n`;
     output += `频道: ${result.channel}\n`;
     output += `时间: ${new Date(result.datetime).toLocaleString('zh-CN')}\n`;
-    
+
     if (result.content && result.content !== result.title) {
       const content = result.content.length > 200 ? result.content.substring(0, 200) + '...' : result.content;
       output += `内容: ${content}\n`;
     }
-    
+
     if (result.tags && result.tags.length > 0) {
       output += `标签: ${result.tags.join(', ')}\n`;
     }
-    
+
     if (result.links && result.links.length > 0) {
       output += `网盘链接:\n`;
       result.links.forEach((link: any, linkIndex: number) => {
@@ -255,13 +255,13 @@ function formatDetailedResults(results: any[]): string {
         output += '\n';
       });
     }
-    
+
     if (result.images && result.images.length > 0) {
       output += `图片: ${result.images.length}张\n`;
     }
-    
+
     output += '\n';
   });
-  
+
   return output;
 }

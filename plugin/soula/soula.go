@@ -228,7 +228,7 @@ func (sa *SoulaPlugin) seedCategories() error {
 	}{
 		{"全部资源", "all", "all"},
 		{"电影", "movie", "movie"},
-		{"电视剧", "series", "series"},
+		{"剧集", "series", "series"},
 		{"动漫", "anime", "anime"},
 		{"综艺", "play", "play"},
 		{"电子书", "ebook", "ebook"},
@@ -243,11 +243,8 @@ func (sa *SoulaPlugin) seedCategories() error {
 	}
 
 	for _, c := range categories {
-		err := sa.DB.Where(Category{Alias: c.Alias}).FirstOrCreate(&Category{
-			Name:  c.Name,
-			Alias: c.Alias,
-			Icon:  c.Icon,
-		}).Error
+		// Use Assign to update Name even if record already exists
+		err := sa.DB.Where(Category{Alias: c.Alias}).Assign(Category{Name: c.Name, Icon: c.Icon}).FirstOrCreate(&Category{}).Error
 		if err != nil {
 			return err
 		}
@@ -341,7 +338,10 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(pageSizeStr)
 	pageSize = cmp.Or(pageSize, 100)
 
-	// 2. Parse limits for items per category
+	// 2. Parse search parameters
+	keyword := c.Query("keyword")
+
+	// 3. Parse limits for items per category
 	limitStr := c.DefaultQuery("limit", "24")
 	limit, _ := strconv.Atoi(limitStr)
 	limit = cmp.Or(limit, 24)
@@ -374,12 +374,22 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 		// Fetch limited items for each category
 		sa.DB.Where("category_id = ?", cat.ID).Order("score desc").Limit(limit).Find(&items)
 
-		// Fetch today's update count
+		// Fetch today's update count or keyword count
 		var todayCount int64
-		if cat.Alias == "all" {
-			sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayCount)
+		if keyword != "" {
+			searchTerm := "%" + keyword + "%"
+			itemQuery := sa.DB.Model(&CollectedResource{})
+			if cat.Alias != "all" {
+				itemQuery = itemQuery.Where("category = ?", cat.Alias)
+			}
+			itemQuery.Where("(title LIKE ? OR description LIKE ? OR original_content LIKE ?)",
+				searchTerm, searchTerm, searchTerm).Count(&todayCount)
 		} else {
-			sa.DB.Model(&CollectedResource{}).Where("category = ? AND created_at >= ?", cat.Alias, todayStart).Count(&todayCount)
+			if cat.Alias == "all" {
+				sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayCount)
+			} else {
+				sa.DB.Model(&CollectedResource{}).Where("category = ? AND created_at >= ?", cat.Alias, todayStart).Count(&todayCount)
+			}
 		}
 
 		itemsJson := make([]gin.H, 0)
