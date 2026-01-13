@@ -365,8 +365,7 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 	}
 
 	// 6. Get today's start time for counting updates
-	now := time.Now()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	todayStart := sa.getTodayStart(c)
 
 	var catList []gin.H
 	for _, cat := range categories {
@@ -523,7 +522,7 @@ func (sa *SoulaPlugin) handleResource(c *gin.Context) {
 
 func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "10"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("perPage", "10"))
 	category := c.Query("category")
 	keyword := c.Query("keyword")
 
@@ -548,8 +547,7 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	query.Count(&total)
 
 	// Calculate today's total updates
-	now := time.Now()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	todayStart := sa.getTodayStart(c)
 	var todayTotal int64
 	sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayTotal)
 
@@ -597,4 +595,18 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 			"per_page":     perPage,
 		},
 	})
+}
+
+func (sa *SoulaPlugin) getTodayStart(c *gin.Context) Timestamp {
+	todayStartStr := c.Query("todayStart")
+	if todayStartStr != "" {
+		// Expecting timestamp in milliseconds
+		ts, err := strconv.ParseInt(todayStartStr, 10, 64)
+		if err == nil {
+			return Timestamp(time.UnixMilli(ts))
+		}
+	}
+	now := time.Now()
+	// Fallback to server local midnight
+	return Timestamp(time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
 }
