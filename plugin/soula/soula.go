@@ -427,9 +427,19 @@ func (sa *SoulaPlugin) handleResourcesRandom(c *gin.Context) {
 		pageSize = 6
 	}
 
+	startTimeStr := c.Query("startTime")
+	db := sa.DB.Model(&CollectedResource{})
+
+	if startTimeStr != "" {
+		if ts, err := strconv.ParseInt(startTimeStr, 10, 64); err == nil {
+			// Expecting timestamp in milliseconds
+			db = db.Where("created_at >= ?", Timestamp(time.UnixMilli(ts)))
+		}
+	}
+
 	var resources []CollectedResource
 	// MySQL specific random order
-	if err := sa.DB.Order("RAND()").Limit(pageSize).Find(&resources).Error; err != nil {
+	if err := db.Order("RAND()").Limit(pageSize).Find(&resources).Error; err != nil {
 		c.JSON(200, gin.H{
 			"code":    0,
 			"message": "success",
