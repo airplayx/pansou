@@ -198,7 +198,7 @@ func (sa *SoulaPlugin) Initialize() error {
 	}
 
 	// 自动迁移
-	if err := db.Set("gorm:table_options",
+	if err = db.Set("gorm:table_options",
 		"ENGINE=InnoDB AUTO_INCREMENT=10000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci").
 		AutoMigrate(
 			&Category{},
@@ -364,8 +364,11 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 		return
 	}
 
-	// 6. Get today's start time for counting updates
-	todayStart := sa.getTodayStart(c)
+	// 6. Get user's timezone from query parameter
+	timezone := c.DefaultQuery("timezone", "Local")
+
+	// 7. Get today's start time for counting updates in user's timezone
+	todayStart := sa.getTodayStartWithTZ(c, timezone)
 
 	var catList []gin.H
 	for _, cat := range categories {
@@ -384,6 +387,9 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 			itemQuery.Where("(title LIKE ? OR description LIKE ? OR original_content LIKE ?)",
 				searchTerm, searchTerm, searchTerm).Count(&todayCount)
 		} else {
+			// Using CONVERT_TZ for accurate timezone-based counts
+			// Assuming created_at is stored in UTC or Database local time
+			// Here we calculate the start of today in the user's timezone and compare
 			if cat.Alias == "all" {
 				sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayCount)
 			} else {
@@ -557,7 +563,8 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	query.Count(&total)
 
 	// Calculate today's total updates
-	todayStart := sa.getTodayStart(c)
+	timezone := c.DefaultQuery("timezone", "Local")
+	todayStart := sa.getTodayStartWithTZ(c, timezone)
 	var todayTotal int64
 	sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayTotal)
 
@@ -607,7 +614,7 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	})
 }
 
-func (sa *SoulaPlugin) getTodayStart(c *gin.Context) Timestamp {
+func (sa *SoulaPlugin) getTodayStartWithTZ(c *gin.Context, timezone string) Timestamp {
 	todayStartStr := c.Query("todayStart")
 	if todayStartStr != "" {
 		// Expecting timestamp in milliseconds
@@ -616,7 +623,20 @@ func (sa *SoulaPlugin) getTodayStart(c *gin.Context) Timestamp {
 			return Timestamp(time.UnixMilli(ts))
 		}
 	}
-	now := time.Now()
-	// Fallback to server local midnight
-	return Timestamp(time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
+
+	// Try to load user's location
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.Local
+	}
+
+	now := time.Now().In(loc)
+	// Return the start of today in user's timezone, then converted back to system local for comparison
+	// GORM/MySQL will handle the comparison correctly if we give it a time.Time
+	res := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	return Timestamp(res)
+}
+
+func (sa *SoulaPlugin) getTodayStart(c *gin.Context) Timestamp {
+	return sa.getTodayStartWithTZ(c, "Local")
 }
