@@ -368,8 +368,8 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 	timezone := c.DefaultQuery("timezone", "Local")
 
 	// 7. Get today's start time for counting updates in user's timezone
-	todayStart := sa.getTodayStartWithTZ(c, timezone)
-
+	utcOffset, _ := sa.calcUserUtcOffset(timezone)
+	todayStart, _ := sa.getUserDayRange(utcOffset)
 	var catList []gin.H
 	for _, cat := range categories {
 		var items []HotSearchItem
@@ -564,7 +564,8 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 
 	// Calculate today's total updates
 	timezone := c.DefaultQuery("timezone", "Local")
-	todayStart := sa.getTodayStartWithTZ(c, timezone)
+	utcOffset, _ := sa.calcUserUtcOffset(timezone)
+	todayStart, _ := sa.getUserDayRange(utcOffset)
 	var todayTotal int64
 	sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayTotal)
 
@@ -614,29 +615,32 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	})
 }
 
-func (sa *SoulaPlugin) getTodayStartWithTZ(c *gin.Context, timezone string) Timestamp {
-	todayStartStr := c.Query("todayStart")
-	if todayStartStr != "" {
-		// Expecting timestamp in milliseconds
-		ts, err := strconv.ParseInt(todayStartStr, 10, 64)
-		if err == nil {
-			return Timestamp(time.UnixMilli(ts))
-		}
-	}
-
-	// Try to load user's location
+func (sa *SoulaPlugin) calcUserUtcOffset(timezone string) (int, error) {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
-		loc = time.Local
+		return 0, err
 	}
 
-	now := time.Now().In(loc)
-	// Return the start of today in user's timezone, then converted back to system local for comparison
-	// GORM/MySQL will handle the comparison correctly if we give it a time.Time
-	res := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
-	return Timestamp(res)
+	nowUTC := time.Now().UTC()
+	userNow := time.Now().In(loc)
+
+	offsetHours := int(userNow.Sub(nowUTC).Hours())
+
+	return offsetHours, nil
 }
 
-func (sa *SoulaPlugin) getTodayStart(c *gin.Context) Timestamp {
-	return sa.getTodayStartWithTZ(c, "Local")
+func (sa *SoulaPlugin) getUserDayRange(userUtcOffset int) (startUTC, endUTC time.Time) {
+	nowUTC := time.Now().UTC()
+	userNow := nowUTC.Add(time.Duration(userUtcOffset) * time.Hour)
+	userDayStart := time.Date(
+		userNow.Year(),
+		userNow.Month(),
+		userNow.Day(),
+		0, 0, 0, 0,
+		time.UTC,
+	)
+
+	startUTC = userDayStart.Add(-time.Duration(userUtcOffset) * time.Hour)
+	endUTC = startUTC.Add(24 * time.Hour)
+	return
 }
