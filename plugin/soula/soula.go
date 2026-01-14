@@ -198,7 +198,7 @@ func (sa *SoulaPlugin) Initialize() error {
 	}
 
 	// 自动迁移
-	if err = db.Set("gorm:table_options",
+	if err := db.Set("gorm:table_options",
 		"ENGINE=InnoDB AUTO_INCREMENT=10000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci").
 		AutoMigrate(
 			&Category{},
@@ -364,12 +364,9 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 		return
 	}
 
-	// 6. Get user's timezone from query parameter
-	timezone := c.DefaultQuery("timezone", "Local")
+	// 6. Get today's start time for counting updates
+	todayStart := sa.getTodayStart(c)
 
-	// 7. Get today's start time for counting updates in user's timezone
-	utcOffset, _ := sa.calcUserUtcOffset(timezone)
-	todayStart, _ := sa.getUserDayRange(utcOffset)
 	var catList []gin.H
 	for _, cat := range categories {
 		var items []HotSearchItem
@@ -387,9 +384,6 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 			itemQuery.Where("(title LIKE ? OR description LIKE ? OR original_content LIKE ?)",
 				searchTerm, searchTerm, searchTerm).Count(&todayCount)
 		} else {
-			// Using CONVERT_TZ for accurate timezone-based counts
-			// Assuming created_at is stored in UTC or Database local time
-			// Here we calculate the start of today in the user's timezone and compare
 			if cat.Alias == "all" {
 				sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayCount)
 			} else {
@@ -563,9 +557,7 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	query.Count(&total)
 
 	// Calculate today's total updates
-	timezone := c.DefaultQuery("timezone", "Local")
-	utcOffset, _ := sa.calcUserUtcOffset(timezone)
-	todayStart, _ := sa.getUserDayRange(utcOffset)
+	todayStart := sa.getTodayStart(c)
 	var todayTotal int64
 	sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayTotal)
 
@@ -615,32 +607,16 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	})
 }
 
-func (sa *SoulaPlugin) calcUserUtcOffset(timezone string) (int, error) {
-	loc, err := time.LoadLocation(timezone)
-	if err != nil {
-		return 0, err
+func (sa *SoulaPlugin) getTodayStart(c *gin.Context) Timestamp {
+	todayStartStr := c.Query("todayStart")
+	if todayStartStr != "" {
+		// Expecting timestamp in milliseconds
+		ts, err := strconv.ParseInt(todayStartStr, 10, 64)
+		if err == nil {
+			return Timestamp(time.UnixMilli(ts))
+		}
 	}
-
-	nowUTC := time.Now().UTC()
-	userNow := time.Now().In(loc)
-
-	offsetHours := int(userNow.Sub(nowUTC).Hours())
-
-	return offsetHours, nil
-}
-
-func (sa *SoulaPlugin) getUserDayRange(userUtcOffset int) (startUTC, endUTC time.Time) {
-	nowUTC := time.Now().UTC()
-	userNow := nowUTC.Add(time.Duration(userUtcOffset) * time.Hour)
-	userDayStart := time.Date(
-		userNow.Year(),
-		userNow.Month(),
-		userNow.Day(),
-		0, 0, 0, 0,
-		time.UTC,
-	)
-
-	startUTC = userDayStart.Add(-time.Duration(userUtcOffset) * time.Hour)
-	endUTC = startUTC.Add(24 * time.Hour)
-	return
+	now := time.Now()
+	// Fallback to server local midnight
+	return Timestamp(time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
 }
