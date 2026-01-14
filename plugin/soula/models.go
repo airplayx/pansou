@@ -38,7 +38,7 @@ type CollectedResource struct {
 	Description     string         `gorm:"column:description;type:text" json:"description"`
 	OriginalContent string         `gorm:"column:original_content;type:longtext" json:"original_content"`
 	Tags            string         `gorm:"column:tags;type:text" json:"tags"`
-	ImageUrl        string         `gorm:"column:image_url;type:varchar(512)" json:"image_url"`
+	ImageUrl        string         `gorm:"column:image_url;type:text" json:"image_url"`
 	Category        string         `gorm:"column:category;type:varchar(64);index" json:"category"`
 	Quality         string         `gorm:"column:quality;type:varchar(32);index" json:"quality"`
 	Year            string         `gorm:"column:year;type:varchar(16);index" json:"year"`
