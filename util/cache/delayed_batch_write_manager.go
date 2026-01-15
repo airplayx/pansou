@@ -831,6 +831,9 @@ func (m *DelayedBatchWriteManager) executeBatchWrite(trigger string) error {
 	}
 
 	// 清空缓冲区
+	for i := range m.queueBuffer {
+		m.queueBuffer[i] = nil
+	}
 	m.queueBuffer = m.queueBuffer[:0]
 	if m.config.EnableCompression {
 		m.mapMutex.Lock()

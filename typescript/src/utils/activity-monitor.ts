@@ -55,13 +55,14 @@ export class ActivityMonitor {
    * 重置空闲计时器
    */
   private resetIdleTimer(): void {
-    if (!this.enableIdleShutdown || !this.onIdleCallback) {
-      return;
-    }
-
     // 清除现有计时器
     if (this.idleTimer) {
       clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+
+    if (!this.enableIdleShutdown || !this.onIdleCallback) {
+      return;
     }
 
     // 设置新的计时器

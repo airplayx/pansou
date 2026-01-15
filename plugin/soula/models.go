@@ -34,7 +34,7 @@ type CollectedResource struct {
 	ID              uint           `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
 	UniqueID        string         `gorm:"column:unique_id;type:varchar(128);uniqueIndex;not null" json:"unique_id"`
 	Channel         string         `gorm:"column:channel;type:varchar(128);index" json:"channel"`
-	Title           string         `gorm:"column:title;type:varchar(255);not null" json:"title"`
+	Title           string         `gorm:"column:title;type:varchar(1000);not null" json:"title"`
 	Description     string         `gorm:"column:description;type:text" json:"description"`
 	OriginalContent string         `gorm:"column:original_content;type:longtext" json:"original_content"`
 	Tags            string         `gorm:"column:tags;type:text" json:"tags"`
