@@ -30,7 +30,7 @@ type SoulaPlugin struct {
 	DB          *gorm.DB // 数据库连接
 }
 
-func (sa *SoulaPlugin) Search(keyword string, ext map[string]interface{}) ([]model.SearchResult, error) {
+func (sa *SoulaPlugin) Search(keyword string, ext map[string]any) ([]model.SearchResult, error) {
 	if keyword == "" || sa.DB == nil {
 		return []model.SearchResult{}, nil
 	}
@@ -366,14 +366,8 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 
 	// 6. Get today's start time for counting updates from query parameter
 	todayStartStr := c.Query("todayStart")
-	var todayStart interface{}
-	if todayStartStr != "" {
-		if ts, err := strconv.ParseInt(todayStartStr, 10, 64); err == nil {
-			todayStart = Timestamp(time.UnixMilli(ts))
-		}
-	}
-
-	if todayStart == nil {
+	todayStart, err := strconv.ParseInt(todayStartStr, 10, 64)
+	if err != nil || todayStart == 0 {
 		c.JSON(400, gin.H{"code": 400, "message": "todayStart parameter is required"})
 		return
 	}
@@ -399,9 +393,9 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 			// Assuming created_at is stored in UTC or Database local time
 			// Here we calculate the start of today in the user's timezone and compare
 			if cat.Alias == "all" {
-				sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayCount)
+				sa.DB.Model(&CollectedResource{}).Where("created_at >= FROM_UNIXTIME(?)", todayStart).Count(&todayCount)
 			} else {
-				sa.DB.Model(&CollectedResource{}).Where("category = ? AND created_at >= ?", cat.Alias, todayStart).Count(&todayCount)
+				sa.DB.Model(&CollectedResource{}).Where("category = ? AND created_at >= FROM_UNIXTIME(?)", cat.Alias, todayStart).Count(&todayCount)
 			}
 		}
 
@@ -446,8 +440,8 @@ func (sa *SoulaPlugin) handleResourcesRandom(c *gin.Context) {
 
 	if startTimeStr != "" {
 		if ts, err := strconv.ParseInt(startTimeStr, 10, 64); err == nil {
-			// Expecting timestamp in milliseconds
-			db = db.Where("created_at >= ?", Timestamp(time.UnixMilli(ts)))
+			// Expecting timestamp in seconds
+			db = db.Where("created_at >= FROM_UNIXTIME(?)", ts)
 		}
 	}
 
@@ -572,20 +566,13 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 
 	// Calculate today's total updates
 	todayStartStr := c.Query("todayStart")
-	var todayStart interface{}
-	if todayStartStr != "" {
-		if ts, err := strconv.ParseInt(todayStartStr, 10, 64); err == nil {
-			todayStart = Timestamp(time.UnixMilli(ts))
-		}
-	}
-
-	if todayStart == nil {
+	todayStart, err := strconv.ParseInt(todayStartStr, 10, 64)
+	if err != nil || todayStart == 0 {
 		c.JSON(400, gin.H{"code": 400, "message": "todayStart parameter is required"})
 		return
 	}
-
 	var todayTotal int64
-	sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayTotal)
+	sa.DB.Model(&CollectedResource{}).Where("created_at >= FROM_UNIXTIME(?)", todayStart).Count(&todayTotal)
 
 	var resources []CollectedResource
 	offset := (page - 1) * perPage

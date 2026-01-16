@@ -12,7 +12,7 @@ type Timestamp time.Time
 
 // MarshalJSON 实现了自定义时间类型的 JSON 编组
 func (t Timestamp) MarshalJSON() ([]byte, error) {
-	timestamp := time.Time(t).UnixMilli()
+	timestamp := time.Time(t).Unix()
 	if timestamp <= 0 {
 		timestamp = 0
 	}
@@ -25,7 +25,7 @@ func (t *Timestamp) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	timestamp := Timestamp(time.UnixMilli(intValue))
+	timestamp := Timestamp(time.Unix(intValue, 0))
 	*t = timestamp
 	return nil
 }
