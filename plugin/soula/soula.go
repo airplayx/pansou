@@ -374,11 +374,8 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 	}
 
 	if todayStart == nil {
-		// Fallback if not provided (though frontend should provide it)
-		timezone := c.DefaultQuery("timezone", "Local")
-		utcOffset, _ := sa.calcUserUtcOffset(timezone)
-		ts, _ := sa.getUserDayRange(utcOffset)
-		todayStart = ts
+		c.JSON(400, gin.H{"code": 400, "message": "todayStart parameter is required"})
+		return
 	}
 
 	var catList []gin.H
@@ -583,10 +580,8 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	}
 
 	if todayStart == nil {
-		timezone := c.DefaultQuery("timezone", "Local")
-		utcOffset, _ := sa.calcUserUtcOffset(timezone)
-		ts, _ := sa.getUserDayRange(utcOffset)
-		todayStart = ts
+		c.JSON(400, gin.H{"code": 400, "message": "todayStart parameter is required"})
+		return
 	}
 
 	var todayTotal int64
@@ -636,34 +631,4 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 			"per_page":     perPage,
 		},
 	})
-}
-
-func (sa *SoulaPlugin) calcUserUtcOffset(timezone string) (int, error) {
-	loc, err := time.LoadLocation(timezone)
-	if err != nil {
-		return 0, err
-	}
-
-	nowUTC := time.Now().UTC()
-	userNow := time.Now().In(loc)
-
-	offsetHours := int(userNow.Sub(nowUTC).Hours())
-
-	return offsetHours, nil
-}
-
-func (sa *SoulaPlugin) getUserDayRange(userUtcOffset int) (startUTC, endUTC time.Time) {
-	nowUTC := time.Now().UTC()
-	userNow := nowUTC.Add(time.Duration(userUtcOffset) * time.Hour)
-	userDayStart := time.Date(
-		userNow.Year(),
-		userNow.Month(),
-		userNow.Day(),
-		0, 0, 0, 0,
-		time.UTC,
-	)
-
-	startUTC = userDayStart.Add(-time.Duration(userUtcOffset) * time.Hour)
-	endUTC = startUTC.Add(24 * time.Hour)
-	return
 }
