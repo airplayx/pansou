@@ -364,12 +364,23 @@ func (sa *SoulaPlugin) handleCategories(c *gin.Context) {
 		return
 	}
 
-	// 6. Get user's timezone from query parameter
-	timezone := c.DefaultQuery("timezone", "Local")
+	// 6. Get today's start time for counting updates from query parameter
+	todayStartStr := c.Query("todayStart")
+	var todayStart interface{}
+	if todayStartStr != "" {
+		if ts, err := strconv.ParseInt(todayStartStr, 10, 64); err == nil {
+			todayStart = Timestamp(time.UnixMilli(ts))
+		}
+	}
 
-	// 7. Get today's start time for counting updates in user's timezone
-	utcOffset, _ := sa.calcUserUtcOffset(timezone)
-	todayStart, _ := sa.getUserDayRange(utcOffset)
+	if todayStart == nil {
+		// Fallback if not provided (though frontend should provide it)
+		timezone := c.DefaultQuery("timezone", "Local")
+		utcOffset, _ := sa.calcUserUtcOffset(timezone)
+		ts, _ := sa.getUserDayRange(utcOffset)
+		todayStart = ts
+	}
+
 	var catList []gin.H
 	for _, cat := range categories {
 		var items []HotSearchItem
@@ -563,9 +574,21 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 	query.Count(&total)
 
 	// Calculate today's total updates
-	timezone := c.DefaultQuery("timezone", "Local")
-	utcOffset, _ := sa.calcUserUtcOffset(timezone)
-	todayStart, _ := sa.getUserDayRange(utcOffset)
+	todayStartStr := c.Query("todayStart")
+	var todayStart interface{}
+	if todayStartStr != "" {
+		if ts, err := strconv.ParseInt(todayStartStr, 10, 64); err == nil {
+			todayStart = Timestamp(time.UnixMilli(ts))
+		}
+	}
+
+	if todayStart == nil {
+		timezone := c.DefaultQuery("timezone", "Local")
+		utcOffset, _ := sa.calcUserUtcOffset(timezone)
+		ts, _ := sa.getUserDayRange(utcOffset)
+		todayStart = ts
+	}
+
 	var todayTotal int64
 	sa.DB.Model(&CollectedResource{}).Where("created_at >= ?", todayStart).Count(&todayTotal)
 
