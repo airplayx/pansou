@@ -17,6 +17,8 @@ import (
 
 	"time"
 
+	"math/rand"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -134,6 +136,9 @@ func (sa *SoulaPlugin) Initialize() error {
 	if sa.initialized {
 		return nil
 	}
+
+	// 初始化随机数种子
+	rand.Seed(time.Now().UnixNano())
 
 	// 初始化存储目录路径
 	cachePath := os.Getenv("CACHE_PATH")
@@ -499,8 +504,38 @@ func (sa *SoulaPlugin) handleResource(c *gin.Context) {
 		return
 	}
 
-	// Increment views
-	sa.DB.Model(&resource).UpdateColumn("views", gorm.Expr("views + ?", 1))
+	// 计算增加的浏览量：10-100 之间，距离上次更新时间越久，增加量越大
+	lastUpdate := time.Time(resource.UpdatedAt)
+	if lastUpdate.IsZero() {
+		lastUpdate = time.Time(resource.CreatedAt)
+	}
+
+	hoursDiff := time.Since(lastUpdate).Hours()
+	if hoursDiff < 0 {
+		hoursDiff = 0
+	}
+
+	// 以 24 小时为一个周期，达到最大偏移系数
+	timeFactor := hoursDiff / 24.0
+	if timeFactor > 1.0 {
+		timeFactor = 1.0
+	}
+
+	// 基础增加 10，最大增加到 100
+	// 随机范围随着时间拉大
+	minInc := 10 + int(70*timeFactor) // 10 -> 80
+	maxInc := 20 + int(80*timeFactor) // 20 -> 100
+
+	increment := minInc
+	if maxInc > minInc {
+		increment += rand.Intn(maxInc - minInc + 1)
+	}
+
+	// 更新浏览量并同步更新时间，以便下次计算
+	sa.DB.Model(&resource).Updates(map[string]interface{}{
+		"views":      gorm.Expr("views + ?", increment),
+		"updated_at": time.Now(),
+	})
 
 	mergedByType := make(map[string][]gin.H)
 	for _, link := range resource.Links {
