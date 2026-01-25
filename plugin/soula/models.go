@@ -66,3 +66,19 @@ type ResourceLink struct {
 	UpdatedAt Timestamp      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"-"`
 }
+
+// FriendLink 友情链接
+type FriendLink struct {
+	ID          uint   `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Name        string `gorm:"column:name;type:varchar(128);not null" json:"name"`
+	URL         string `gorm:"column:url;type:varchar(512);not null" json:"url"`
+	Icon        string `gorm:"column:icon;type:varchar(512)" json:"icon"`
+	Category    string `gorm:"column:category;type:varchar(64);not null;index" json:"category"`
+	Description string `gorm:"column:description;type:varchar(512)" json:"description"`
+	Sort        int    `gorm:"column:sort;type:int(11);default:0" json:"sort"`
+	Status      int    `gorm:"column:status;type:tinyint(4);default:1" json:"status"`
+
+	CreatedAt Timestamp      `gorm:"column:created_at;type:datetime" json:"created_at"`
+	UpdatedAt Timestamp      `gorm:"column:updated_at;type:datetime" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index" json:"-"`
+}

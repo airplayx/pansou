@@ -11,6 +11,7 @@ import (
 	"pansou/plugin"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
 	"gorm.io/gorm/logger"
@@ -210,6 +211,7 @@ func (sa *SoulaPlugin) Initialize() error {
 			&HotSearchItem{},
 			&CollectedResource{},
 			&ResourceLink{},
+			&FriendLink{},
 		); err != nil {
 		return fmt.Errorf("数据库迁移失败: %v", err)
 	}
@@ -222,6 +224,29 @@ func (sa *SoulaPlugin) Initialize() error {
 		fmt.Printf("警告: 初始化分类数据失败: %v\n", err)
 	}
 
+	// 初始化友情链接数据
+	if err := sa.seedFriendLinks(); err != nil {
+		fmt.Printf("警告: 初始化友情链接数据失败: %v\n", err)
+	}
+
+	return nil
+}
+
+func (sa *SoulaPlugin) seedFriendLinks() error {
+	var count int64
+	sa.DB.Model(&FriendLink{}).Count(&count)
+	if count > 0 {
+		return nil
+	}
+
+	links := []FriendLink{
+		{Name: "盘搜", URL: "https://pansou.cn", Description: "极简单的网盘搜索", Sort: 1, Category: "搜索"},
+		{Name: "苏拉搜索", URL: "https://soula.io", Description: "专业网盘搜索引擎", Sort: 2, Category: "搜索"},
+	}
+
+	for _, l := range links {
+		sa.DB.Create(&l)
+	}
 	return nil
 }
 
@@ -283,6 +308,8 @@ func (sa *SoulaPlugin) RegisterWebRoutes(router *gin.RouterGroup) {
 	soula.GET("/collected-resources", sa.handleResources)
 	soula.GET("/resource/:param", sa.handleResource)
 	soula.GET("/collected-resources/hot", sa.handleDailyHotResources)
+	soula.GET("/friend-links", sa.handleFriendLinks)
+	soula.POST("/friend-links", sa.handleUpsertFriendLink)
 
 	fmt.Printf("[SOULA] Web路由已注册并启用鉴权: /api/...\n")
 }
@@ -652,5 +679,118 @@ func (sa *SoulaPlugin) handleResources(c *gin.Context) {
 			"last_page":    lastPage,
 			"per_page":     perPage,
 		},
+	})
+}
+
+func normalizeFriendLinkURL(u string) string {
+	u = strings.TrimPrefix(u, "https://")
+	u = strings.TrimPrefix(u, "http://")
+	u = strings.TrimPrefix(u, "//")
+	u = strings.TrimSuffix(u, "/")
+	return strings.ToLower(u)
+}
+
+func (sa *SoulaPlugin) handleFriendLinks(c *gin.Context) {
+	referer := c.Request.Referer()
+
+	var links []FriendLink
+	// 获取所有启用的友链，以便在内存中进行 Referer 匹配
+	if err := sa.DB.Where("status = ?", 1).Order("sort asc, id asc").Find(&links).Error; err != nil {
+		c.JSON(500, gin.H{"code": 500, "message": "Failed to fetch friend links"})
+		return
+	}
+
+	if referer != "" {
+		normRef := normalizeFriendLinkURL(referer)
+		foundIdx := -1
+		for i, l := range links {
+			normLink := normalizeFriendLinkURL(l.URL)
+			// 如果 Referer 匹配该友链（例如来自该域名的某个页面），则认为命中
+			if strings.HasPrefix(normRef, normLink) {
+				foundIdx = i
+				break
+			}
+		}
+
+		// 如果找到了匹配项且不在第一位，则移动到第一位
+		if foundIdx > 0 {
+			match := links[foundIdx]
+			// 从原切片中移除
+			links = append(links[:foundIdx], links[foundIdx+1:]...)
+			// 插入到开头
+			links = append([]FriendLink{match}, links...)
+		}
+	}
+
+	// 最终展示数量控制
+	all := c.Query("all")
+	if all != "true" && len(links) > 8 {
+		links = links[:8]
+	}
+
+	c.JSON(200, gin.H{
+		"code":    0,
+		"message": "success",
+		"data": gin.H{
+			"items": links,
+		},
+	})
+}
+
+func (sa *SoulaPlugin) handleUpsertFriendLink(c *gin.Context) {
+	var req struct {
+		ID          uint   `json:"id"`
+		Name        string `json:"name" binding:"required"`
+		URL         string `json:"url" binding:"required"`
+		Category    string `json:"category" binding:"required"`
+		Icon        string `json:"icon"`
+		Description string `json:"description"`
+		Sort        int    `json:"sort"`
+		Status      int    `json:"status"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"code": 400, "message": "Invalid parameters: " + err.Error()})
+		return
+	}
+
+	link := FriendLink{
+		Name:        req.Name,
+		URL:         req.URL,
+		Category:    req.Category,
+		Icon:        req.Icon,
+		Description: req.Description,
+		Sort:        req.Sort,
+		Status:      req.Status,
+	}
+
+	if req.ID > 0 {
+		link.ID = req.ID
+		if err := sa.DB.Model(&FriendLink{}).Where("id = ?", req.ID).Updates(&link).Error; err != nil {
+			c.JSON(500, gin.H{"code": 500, "message": "Failed to update friend link"})
+			return
+		}
+	} else {
+		// 检查重复
+		var existingLinks []FriendLink
+		sa.DB.Select("url").Find(&existingLinks)
+		normalizedNew := normalizeFriendLinkURL(req.URL)
+		for _, l := range existingLinks {
+			if normalizeFriendLinkURL(l.URL) == normalizedNew {
+				c.JSON(400, gin.H{"code": 400, "message": "该网址已存在或已在申请中，请勿重复提交"})
+				return
+			}
+		}
+
+		if err := sa.DB.Create(&link).Error; err != nil {
+			c.JSON(500, gin.H{"code": 500, "message": "Failed to create friend link"})
+			return
+		}
+	}
+
+	c.JSON(200, gin.H{
+		"code":    0,
+		"message": "success",
+		"data":    link,
 	})
 }
