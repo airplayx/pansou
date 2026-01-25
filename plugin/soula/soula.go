@@ -761,7 +761,7 @@ func (sa *SoulaPlugin) handleUpsertFriendLink(c *gin.Context) {
 		Icon:        req.Icon,
 		Description: req.Description,
 		Sort:        req.Sort,
-		Status:      req.Status,
+		Status:      0,
 	}
 
 	if req.ID > 0 {
