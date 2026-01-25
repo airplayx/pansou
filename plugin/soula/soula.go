@@ -240,8 +240,7 @@ func (sa *SoulaPlugin) seedFriendLinks() error {
 	}
 
 	links := []FriendLink{
-		{Name: "盘搜", URL: "https://pansou.cn", Description: "极简单的网盘搜索", Sort: 1, Category: "搜索"},
-		{Name: "苏拉搜索", URL: "https://soula.io", Description: "专业网盘搜索引擎", Sort: 2, Category: "搜索"},
+		{Name: "苏拉搜索", URL: "https://sou.la", Description: "专业网盘搜索引擎", Sort: 1, Category: "搜索"},
 	}
 
 	for _, l := range links {
